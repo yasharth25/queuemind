@@ -1,0 +1,41 @@
+locations:
+
+  - id: bank
+    display_name: Campus Bank
+    category: bank
+    default_counters: 3
+    average_service_time_minutes: 3.0
+    target_wait_minutes: 15
+    warning_queue_length: 15
+    critical_queue_length: 30
+    enabled: true
+
+  - id: health_centre
+    display_name: Health Centre
+    category: healthcare
+    default_counters: 2
+    average_service_time_minutes: 4.0
+    target_wait_minutes: 20
+    warning_queue_length: 12
+    critical_queue_length: 25
+    enabled: true
+
+  - id: central_canteen
+    display_name: Central Canteen
+    category: canteen
+    default_counters: 4
+    average_service_time_minutes: 2.0
+    target_wait_minutes: 12
+    warning_queue_length: 20
+    critical_queue_length: 40
+    enabled: true
+
+  - id: central_library
+    display_name: Central Library
+    category: library
+    default_counters: 2
+    average_service_time_minutes: 2.5
+    target_wait_minutes: 10
+    warning_queue_length: 10
+    critical_queue_length: 20
+    enabled: true
