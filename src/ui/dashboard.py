@@ -5,6 +5,8 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
+from src.forecasting.forecaster import ArrivalForecaster
+from src.forecasting.queue_integration import forecast_queue_outcomes
 from src.queueing.simulator import (
     calculate_service_rate, estimate_wait_minutes, evaluate_counter_counts,
     get_congestion_status, recommend_counter_count, simulate_queue,
@@ -45,6 +47,17 @@ def render_dashboard(locations: list[dict]) -> None:
     st.line_chart(history[["queue_count"]])
     st.subheader("Future Queue Forecast (deterministic simulation)")
     st.line_chart(pd.DataFrame(projection).set_index("minute")[["queue"]])
+    st.subheader("Demand Forecast → Queue Projection")
+    forecast_location = {**location, "default_counters": selected_counters}
+    forecast_data = data.copy()
+    forecast_data.loc[:, "active_counters"] = selected_counters
+    outcomes = forecast_queue_outcomes(ArrivalForecaster(), forecast_location, forecast_data)
+    forecast_table = pd.DataFrame([
+        {"horizon_minutes": minutes, "forecast_arrivals": value["predicted_arrivals"], "expected_queue": value["expected_queue"], "predicted_wait_minutes": value["predicted_wait_minutes"], "forecast_method": value["method"]}
+        for minutes, value in outcomes.items()
+    ])
+    st.caption("Demand uses the rolling-arrival baseline until a trained model artifact is explicitly loaded.")
+    st.dataframe(forecast_table, hide_index=True, use_container_width=True)
     st.subheader("Counter Simulator")
     scenarios = evaluate_counter_counts(float(latest.queue_count), float(latest.arrival_rate), float(latest.average_service_time), [1, 2, 3, 4, 5, 6, 7, 8], horizon)
     st.dataframe(pd.DataFrame(scenarios), hide_index=True, use_container_width=True)
