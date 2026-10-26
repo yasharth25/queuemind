@@ -3,8 +3,10 @@ import streamlit as st
 from src.config import get_enabled_locations
 from src.forecasting.forecaster import ArrivalForecaster
 from src.synthetic.generator import generate_synthetic_queue_data
+from src.ui.components import header
 def render_evaluation():
- st.title("Model Evaluation"); st.caption("Forecast evaluation below uses held-out SYNTHETIC data; it is not a claim about campus performance.")
+ header("Model evaluation","Synthetic held-out chronological test data")
+ st.caption("Synthetic evaluation — not real NIT Rourkela performance.")
  if st.button("Calculate forecasting evaluation"):
   data=generate_synthetic_queue_data(get_enabled_locations(),"2026-01-01",days=8,seed=9); metrics=ArrivalForecaster().train(data)
   rows=[]
