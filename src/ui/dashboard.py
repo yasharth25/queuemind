@@ -4,13 +4,13 @@ import plotly.graph_objects as go
 import streamlit as st
 from src.queueing.simulator import calculate_service_rate, estimate_wait_minutes, evaluate_counter_counts, get_congestion_status, recommend_counter_count, simulate_queue
 from src.synthetic.generator import generate_synthetic_queue_data
-from src.ui.components import action_card, header, metric
+from src.ui.components import action_card, header, impact_row, metric
 from src.ui.recommendations import recommendation_message
 
 def _chart(history, projection):
- fig=go.Figure(); fig.add_trace(go.Scatter(x=history.index,y=history.queue_count,name="Observed / historical",line=dict(color="#4C8DFF",width=2)))
- now=history.index[-1]; future=[now+pd.Timedelta(minutes=r["minute"]) for r in projection]; fig.add_trace(go.Scatter(x=future,y=[r["queue"] for r in projection],name="Forecast / simulated",line=dict(color="#F3B44B",width=2,dash="dash")))
- fig.add_vline(x=now,line_color="#8E99A8",line_dash="dot"); fig.update_layout(height=330,margin=dict(l=8,r=8,t=20,b=8),paper_bgcolor="#11151A",plot_bgcolor="#11151A",font_color="#F4F6F8",legend=dict(orientation="h"),xaxis=dict(gridcolor="#222A33"),yaxis=dict(gridcolor="#222A33",title="People")); return fig
+ fig=go.Figure(); fig.add_trace(go.Scatter(x=history.index,y=history.queue_count,name="Observed / historical",line=dict(color="#1E4F91",width=2),fill="tozeroy",fillcolor="rgba(30,79,145,.10)"))
+ now=history.index[-1]; future=[now+pd.Timedelta(minutes=r["minute"]) for r in projection]; fig.add_trace(go.Scatter(x=future,y=[r["queue"] for r in projection],name="Forecast / simulated",line=dict(color="#F97360",width=2,dash="dash"),fill="tozeroy",fillcolor="rgba(249,115,96,.10)"))
+ fig.add_vline(x=now,line_color="#1E3A5F",line_dash="dot"); fig.update_layout(height=330,margin=dict(l=8,r=8,t=20,b=8),paper_bgcolor="#FFF",plot_bgcolor="#FFF",font_color="#334155",legend=dict(orientation="h"),xaxis=dict(gridcolor="#E9EDF2"),yaxis=dict(gridcolor="#E9EDF2",title="People")); return fig
 
 def render_dashboard(locations):
  top_left,top_right=st.columns([3,1]);
@@ -27,6 +27,12 @@ def render_dashboard(locations):
  left,right=st.columns([2,1]);
  with left: st.markdown("#### Queue forecast"); st.plotly_chart(_chart(data.tail(72).set_index("timestamp"),projection),use_container_width=True,config={"displayModeBar":False})
  with right: action_card(status,"Predicted wait is %.1f min at +20 minutes."%future_wait,message); st.slider("Active counters",1,8,counters,key="counter_value"); st.caption(f"Arrival rate {latest.arrival_rate:.2f}/min · Service rate {service:.2f}/min")
- st.markdown("#### Counter impact · 20-minute simulation")
- comparison=pd.DataFrame(evaluate_counter_counts(float(latest.queue_count),float(latest.arrival_rate),float(latest.average_service_time),[max(1,counters-1),counters,counters+1,recommendation["recommended_counters"]],20)); comparison["status"]=comparison.future_queue.apply(lambda x:get_congestion_status(x,location["warning_queue_length"],location["critical_queue_length"])); st.dataframe(comparison,hide_index=True,use_container_width=True)
+ st.markdown(f"#### Counter configuration impact · 20-minute simulation")
+ st.caption(f"Arrival rate {latest.arrival_rate:.2f}/min  ·  Service rate {service:.2f}/min  ·  Select a configuration to recalculate")
+ comparison=evaluate_counter_counts(float(latest.queue_count),float(latest.arrival_rate),float(latest.average_service_time),list(range(max(1,counters-1),min(8,counters+2)+1))+[recommendation["recommended_counters"]],20)
+ max_queue=max(item["future_queue"] for item in comparison); max_wait=max(item["predicted_wait_minutes"] for item in comparison)
+ for item in comparison:
+  item_status=get_congestion_status(item["future_queue"],location["warning_queue_length"],location["critical_queue_length"]); st.markdown(impact_row(item,item_status,item["active_counters"]==counters,item["active_counters"]==recommendation["recommended_counters"],max_queue,max_wait),unsafe_allow_html=True)
+  button_label="Current" if item["active_counters"]==counters else "Select"
+  if st.button(button_label,key=f"counter_{item['active_counters']}",disabled=item["active_counters"]==counters): st.session_state.counter_value=item["active_counters"]; st.rerun()
  with st.expander("System status"): st.write("Synthetic simulation backend online. Vision is optional local functionality; no webcam, YOLO model, real data, or persisted forecast model is required.")
