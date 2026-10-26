@@ -2,3 +2,5 @@
 __pycache__/
 .pytest_cache/
 *.pyc
+models/forecasting/*.joblib
+models/forecasting/*metadata.json
