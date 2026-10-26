@@ -7,13 +7,14 @@ import json
 import os
 
 # Keep prototype training reliable in constrained local/demo environments.
-os.environ.setdefault("OMP_NUM_THREADS", "1")
+os.environ["OMP_NUM_THREADS"] = "1"
 
 import joblib
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import HistGradientBoostingRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from threadpoolctl import threadpool_limits
 
 from src.forecasting.features import FEATURE_COLUMNS, build_features, chronological_split
 
@@ -50,7 +51,8 @@ class ArrivalForecaster:
                 raise ValueError("Insufficient chronological history to train and evaluate forecasts.")
             baseline = test_rows["arrivals_rolling_mean_3"].to_numpy()
             model = HistGradientBoostingRegressor(max_iter=120, learning_rate=.08, max_leaf_nodes=15, random_state=42)
-            model.fit(training_rows[FEATURE_COLUMNS], training_rows[target])
+            with threadpool_limits(limits=1):
+                model.fit(training_rows[FEATURE_COLUMNS], training_rows[target])
             prediction = np.clip(model.predict(test_rows[FEATURE_COLUMNS]), 0, None)
             self.models[horizon] = model
             self.metrics[horizon] = {"baseline": _metrics(test_rows[target], baseline), "ml": _metrics(test_rows[target], prediction), "test_samples": len(test_rows)}
