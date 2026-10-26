@@ -1,0 +1,3 @@
+save_processed_video: false
+anonymous_tracking_only: true
+retain_raw_video: false
