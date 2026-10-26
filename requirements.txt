@@ -1,3 +1,5 @@
 streamlit
 PyYAML
 pytest
+pandas
+numpy
