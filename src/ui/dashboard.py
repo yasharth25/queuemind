@@ -29,7 +29,7 @@ def render_dashboard(locations: list[dict]) -> None:
     recommendation = recommend_counter_count(float(latest.queue_count), float(latest.arrival_rate), float(latest.average_service_time), selected_counters, float(location["target_wait_minutes"]), horizon, [1, 2, 3, 4, 5, 6, 7, 8])
 
     st.title("QueueMind Operations Dashboard")
-    st.caption("System status: simulation backend online · Vision and trained forecasting model not loaded")
+    st.caption("System status: simulation backend online · Vision is optional and only runs when a local video source is explicitly supplied · trained forecasting model not loaded")
     metrics = st.columns(4)
     metrics[0].metric("Current Queue", int(latest.queue_count))
     metrics[1].metric("Estimated Wait", f"{estimate_wait_minutes(float(latest.queue_count), selected_counters, float(latest.average_service_time)):.1f} min")
