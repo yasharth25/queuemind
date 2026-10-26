@@ -10,3 +10,7 @@ models/forecasting/*metadata.json
 *.avi
 *.mov
 processed_video/
+runs/
+*.pt
+data/queuemind.db
+data/synthetic/*.csv

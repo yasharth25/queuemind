@@ -1,8 +1,6 @@
-streamlit
+streamlit==1.65.0
 PyYAML
 pytest
 pandas
 numpy
 scikit-learn
-opencv-python
-ultralytics

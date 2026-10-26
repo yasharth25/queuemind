@@ -12,6 +12,7 @@ st.set_page_config(
 )
 
 page=st.sidebar.radio("QueueMind",["Operations Dashboard","Professor Demo Mode","Model Evaluation"])
+st.sidebar.caption("Academic demonstration · SYNTHETIC / SIMULATION data · Optional local vision is not enabled in cloud mode.")
 if page == "Professor Demo Mode": render_demo()
 elif page == "Model Evaluation": render_evaluation()
 else: render_dashboard(get_enabled_locations())

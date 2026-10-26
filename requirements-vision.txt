@@ -1,0 +1,5 @@
+# Optional local-only dependencies for scripts/vision_demo.py.
+# Keep these out of Streamlit Community Cloud's academic simulation deployment.
+-r requirements.txt
+opencv-python
+ultralytics

@@ -2,6 +2,10 @@
 
 QueueMind is a presentation-ready prototype for queue simulation, synthetic demand forecasting, counter optimisation, and privacy-preserving person-only queue analytics. It supports an operations dashboard and an offline Professor Demo Mode. **Synthetic data is not real NIT Rourkela operational data.**
 
+## Streamlit Community Cloud academic demo
+
+Deploy `app.py` with `requirements.txt`. The cloud app is intentionally a **SYNTHETIC / SIMULATION** academic demonstration: it needs no webcam, YOLO weights, real campus data, SQLite persistence, or trained-model artifact. Person-only vision remains an optional local capability and is not installed by the cloud requirements; use `requirements-vision.txt` only for local video/webcam experimentation.
+
 ## Problem and core idea
 
 Queues become costly before staff can react. QueueMind combines historical/synthetic observations, future-arrival forecasting, deterministic queue mathematics, and optional camera queue counts to project congestion and recommend a minimum counter count.
@@ -34,6 +38,8 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m scripts.vision_demo "C:\path\to\video.mp4"
 .\.venv\Scripts\python.exe -m scripts.vision_demo 0
 ```
+
+For a local vision environment, install `requirements-vision.txt` instead of the cloud-focused core requirements.
 
 Use the sidebar to open Professor Demo Mode; choose a scenario and adjust counters/demand. It remains usable without a camera, YOLO weights, a network connection, or trained model artifacts.
 
