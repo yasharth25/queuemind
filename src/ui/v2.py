@@ -4,6 +4,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 from src.demo.scenarios import SCENARIOS, calculate_demo
+from src.demo.live import advance, initial_state, pause, play, reset, set_counters, trigger_surge
 from src.forecasting.queue_integration import forecast_queue_outcomes
 from src.forecasting.forecaster import ArrivalForecaster
 from src.queueing.simulator import estimate_wait_minutes, evaluate_counter_counts, get_congestion_status, recommend_counter_count, simulate_queue
@@ -73,3 +74,32 @@ def vision_lab():
  st.info("VISION MODULE · Available in local mode. Cloud simulation does not load YOLO, a webcam, or local video.")
  st.graphviz_chart("digraph {Video -> Detection -> Tracking -> ROI -> Events -> Statistics}")
  st.write("No face recognition. No identity recognition. Temporary anonymous tracking IDs only.")
+
+# Defined after the static page helpers to keep the live fragment small and isolated.
+def scenario_lab():
+ header("Scenario Lab","Interactive Queue Simulation · Professor Demo")
+ scenario=st.radio("Choose scenario",list(SCENARIOS),horizontal=True,key="live_scenario")
+ if "live_state" not in st.session_state or st.session_state.live_state["selected_scenario"]!=scenario: st.session_state.live_state=initial_state(scenario)
+ state=st.session_state.live_state; cfg=SCENARIOS[scenario]
+ controls=st.columns(6)
+ intensity=controls[0].slider("Demand intensity",.5,2.5,float(state["demand_intensity"]),.1)
+ speed=controls[1].selectbox("Speed",["1×","2×","5×","10×"],index=["1×","2×","5×","10×"].index(state["simulation_speed"]))
+ counters=controls[2].slider("Counters",1,8,int(state["active_counters"]))
+ if controls[3].button("Play"): play(state)
+ if controls[4].button("Pause"): pause(state)
+ if controls[5].button("Reset"): st.session_state.live_state=reset(state); st.rerun()
+ state["demand_intensity"]=intensity; state["simulation_speed"]=speed; set_counters(state,counters)
+ if st.button("Trigger surge",type="primary"): trigger_surge(state)
+ label="● LIVE · Simulation running" if state["simulation_running"] else "COMPLETE" if state["complete"] else "Ⅱ PAUSED" if state["simulation_elapsed_minutes"] else "○ READY"
+ st.caption(label+f" · {state['simulation_elapsed_minutes']} simulated minutes")
+ @st.fragment(run_every="1s")
+ def live_panel():
+  current=st.session_state.live_state; advance(current); cfg=SCENARIOS[current["selected_scenario"]]
+  rate=current["current_arrival_rate"]; projections={h:simulate_queue(current["current_queue"],rate,cfg["service_time"],current["active_counters"],h)[-1]["queue"] for h in [5,10,20,30]}
+  cols=st.columns(5)
+  for col,(name,queue) in zip(cols,[("NOW",current["current_queue"]),*[(f"+{h}",q) for h,q in projections.items()]]):
+   with col: metric(name,f"{queue:.0f}",f"{estimate_wait_minutes(queue,current['active_counters'],cfg['service_time']):.1f} min")
+  dots="● "*min(50,int(current["current_queue"])); st.markdown(f'<div class="card"><b>LIVE QUEUE</b><div style="font-size:22px;color:#1E3A5F;letter-spacing:5px">{dots or "Queue clear"}</div><span class="metric-detail">Arrival {rate:.2f}/min · Service {current["current_service_rate"]:.2f}/min · {current["active_counters"]} counters</span></div>',unsafe_allow_html=True)
+  st.subheader("Simulation event log")
+  for event in reversed(current["simulation_events"][-6:]): st.caption(f"+{event['minute']}m · {event['text']}")
+ live_panel()
