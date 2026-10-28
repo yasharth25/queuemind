@@ -8,7 +8,7 @@ Interactive AI/ML queue forecasting, simulation and counter-optimization prototy
 
 > `LIVE_APP_URL_REQUIRED` — paste the real Streamlit Community Cloud URL here after deployment. The live demo will track the stable `main` branch.
 
-QueueMind is a presentation-ready prototype for queue simulation, synthetic demand forecasting, counter optimisation, and privacy-preserving person-only queue analytics. It supports an operations dashboard and an offline Professor Demo Mode. **Synthetic data is not real NIT Rourkela operational data.**
+QueueMind is a presentation-ready prototype for queue simulation, synthetic demand forecasting, counter optimisation, and privacy-preserving person-only queue analytics. Its single-page Command Center is an offline professor demonstration. **Synthetic data is not real NIT Rourkela operational data.**
 
 ## Streamlit Community Cloud academic demo
 
@@ -49,11 +49,11 @@ python -m venv .venv
 
 For a local vision environment, install `requirements-vision.txt` instead of the cloud-focused core requirements.
 
-Use the sidebar to open Professor Demo Mode; choose a scenario and adjust counters/demand. It remains usable without a camera, YOLO weights, a network connection, or trained model artifacts.
+Open the single-page Command Center; it starts with a non-zero, deterministic **SYNTHETIC Canteen Lunch Rush** snapshot. Choose another scenario or facility, adjust counters/demand, and use Play, Pause, Reset or Trigger Surge. The live queue, action panel, timeline, forecast chart, alerts, events, counter comparisons, heatmap, Vision status and model evaluation all appear on this page. The simulation remains usable without a camera, YOLO weights, a network connection, or trained model artifacts. The visible live projection is deterministic queue simulation; the ML summary is a separate held-out synthetic evaluation.
 
 ## Structure
 
-`src/config.py` configuration; `src/synthetic` synthetic generator; `src/storage` SQLite repository; `src/queueing` mathematics; `src/forecasting` feature/model/integration code; `src/vision` optional anonymous vision; `src/demo` scenarios; `src/ui` Streamlit pages.
+`src/config.py` configuration; `src/synthetic` synthetic generator; `src/storage` SQLite repository; `src/queueing` mathematics; `src/forecasting` feature/model/integration code; `src/vision` optional anonymous vision; `src/demo` scenarios/live state; `src/ui/command_center.py` single-page Streamlit composition with reusable presentation helpers. Legacy page helpers remain for development but are not part of the primary navigation.
 
 ## Limitations and future work
 

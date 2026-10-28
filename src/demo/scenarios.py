@@ -3,7 +3,7 @@ from src.queueing.simulator import calculate_service_rate, estimate_wait_minutes
 SCENARIOS={
 "Normal Bank Morning":{"location_id":"bank","category":"bank","queue":6,"arrival_rate":.45,"service_time":3,"counters":3,"target_wait":15,"warning":15,"critical":30},
 "Bank Rush":{"location_id":"bank","category":"bank","queue":24,"arrival_rate":1.7,"service_time":3,"counters":3,"target_wait":15,"warning":15,"critical":30},
-"Canteen Lunch Rush":{"location_id":"central_canteen","category":"canteen","queue":32,"arrival_rate":3.1,"service_time":2,"counters":4,"target_wait":12,"warning":20,"critical":40},
+"Canteen Lunch Rush":{"location_id":"central_canteen","category":"canteen","queue":24,"arrival_rate":2.0,"service_time":2,"counters":3,"target_wait":12,"warning":20,"critical":40},
 "Library Evening":{"location_id":"central_library","category":"library","queue":11,"arrival_rate":.9,"service_time":2.5,"counters":2,"target_wait":10,"warning":10,"critical":20},
 "Health Centre Sudden Surge":{"location_id":"health_centre","category":"healthcare","queue":18,"arrival_rate":1.35,"service_time":4,"counters":2,"target_wait":20,"warning":12,"critical":25},}
 
