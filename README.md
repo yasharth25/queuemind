@@ -2,11 +2,12 @@
 
 **See now. Predict next. Act early.**
 
-[![QueueMind CI](https://github.com/yasharth25/queuemind/actions/workflows/ci.yml/badge.svg)](https://github.com/yasharth25/queuemind/actions/workflows/ci.yml)
+[![Open Live App](https://img.shields.io/badge/OPEN%20LIVE%20APP-QueueMind-F97360?style=for-the-badge)](https://queuemind-nitr.streamlit.app/) [![QueueMind CI](https://github.com/yasharth25/queuemind/actions/workflows/ci.yml/badge.svg)](https://github.com/yasharth25/queuemind/actions/workflows/ci.yml)
 
 Interactive AI/ML queue forecasting, simulation and counter-optimization prototype.
 
-> `LIVE_APP_URL_REQUIRED` — paste the real Streamlit Community Cloud URL here after deployment. The live demo will track the stable `main` branch.
+**Live demo:** https://queuemind-nitr.streamlit.app/  
+The live demo tracks the stable `main` branch, so tested pushes are reflected in the deployed application.
 
 QueueMind is a presentation-ready prototype for queue simulation, synthetic demand forecasting, counter optimisation, and privacy-preserving person-only queue analytics. Its single-page Command Center is an offline professor demonstration. **Synthetic data is not real NIT Rourkela operational data.**
 
