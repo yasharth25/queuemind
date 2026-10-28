@@ -1,4 +1,12 @@
-# QueueMind — AI That Predicts Queues Before They Become Queues
+# QueueMind ⏱️
+
+**See now. Predict next. Act early.**
+
+[![QueueMind CI](https://github.com/yasharth25/queuemind/actions/workflows/ci.yml/badge.svg)](https://github.com/yasharth25/queuemind/actions/workflows/ci.yml)
+
+Interactive AI/ML queue forecasting, simulation and counter-optimization prototype.
+
+> `LIVE_APP_URL_REQUIRED` — paste the real Streamlit Community Cloud URL here after deployment. The live demo will track the stable `main` branch.
 
 QueueMind is a presentation-ready prototype for queue simulation, synthetic demand forecasting, counter optimisation, and privacy-preserving person-only queue analytics. It supports an operations dashboard and an offline Professor Demo Mode. **Synthetic data is not real NIT Rourkela operational data.**
 
