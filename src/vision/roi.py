@@ -1,5 +1,4 @@
 """Normalized queue-region geometry and annotation helpers."""
-import cv2
 import numpy as np
 from src.vision.tracking import TrackedPerson
 
@@ -16,6 +15,13 @@ def classify_queue_people(tracks: list[TrackedPerson], normalized_polygon, frame
     return {"total_detected_people":len(tracks),"queue_count":len(queued),"queue_track_ids":[item.track_id for item in queued]}
 
 def annotate_roi(frame, tracks, normalized_polygon):
+    try:
+        import cv2
+    except ImportError as exc:
+        raise RuntimeError(
+            "OpenCV is required for local ROI annotation. "
+            "Install requirements-vision.txt."
+        ) from exc
     height,width=frame.shape[:2]; polygon=np.array([(int(x*width),int(y*height)) for x,y in normalized_polygon], np.int32)
     cv2.polylines(frame,[polygon],True,(255,255,0),2)
     ids=classify_queue_people(tracks,normalized_polygon,width,height)["queue_track_ids"]

@@ -2,7 +2,6 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
-import cv2
 
 PERSON_CLASS_ID = 0
 
@@ -34,6 +33,13 @@ class PersonDetector:
         return [Detection(tuple(map(float, box.xyxy[0].tolist())), float(box.conf[0])) for box in boxes]
 
     def open_source(self, source: str | int):
+        try:
+            import cv2
+        except ImportError as exc:
+            raise RuntimeError(
+                "OpenCV is required for local video/webcam vision. "
+                "Install requirements-vision.txt."
+            ) from exc
         capture = cv2.VideoCapture(source)
         if not capture.isOpened():
             capture.release()
