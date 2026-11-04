@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from contextlib import contextmanager
+from tempfile import TemporaryDirectory
+from math import isfinite
 
 SUPPORTED_SUFFIXES = {".mp4", ".avi", ".mov", ".mkv"}
 
@@ -44,7 +47,7 @@ def open_video(path: str | Path):
     width = int(capture.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
     total = int(capture.get(cv2.CAP_PROP_FRAME_COUNT))
-    if fps <= 0 or width <= 0 or height <= 0:
+    if not isfinite(fps) or fps <= 0 or width <= 0 or height <= 0:
         capture.release()
         raise ValueError("Video has invalid FPS or resolution metadata.")
     metadata = VideoMetadata(
@@ -60,3 +63,31 @@ def encode_preview(frame) -> bytes:
     if not ok:
         raise RuntimeError("Could not encode an annotated preview frame.")
     return encoded.tobytes()
+
+
+@contextmanager
+def uploaded_video_file(uploaded):
+    """Materialize one upload only while it is inspected/analyzed, then remove it."""
+    name = Path(uploaded.name).name
+    if Path(name).suffix.lower() not in SUPPORTED_SUFFIXES:
+        raise ValueError("Supported local videos: MP4, AVI, MOV, and MKV.")
+    with TemporaryDirectory(prefix="queuemind_video_") as folder:
+        path = Path(folder) / name
+        with path.open("wb") as stream:
+            stream.write(uploaded.getbuffer())
+        yield path
+
+
+def read_sample_frame(path: str | Path, frame_index: int):
+    if frame_index < 0:
+        raise ValueError("Sample frame index cannot be negative.")
+    capture, metadata = open_video(path)
+    cv2 = require_opencv()
+    try:
+        capture.set(cv2.CAP_PROP_POS_FRAMES, frame_index)
+        ok, frame = capture.read()
+        if not ok:
+            raise ValueError("Selected frame could not be decoded.")
+        return frame, metadata
+    finally:
+        capture.release()

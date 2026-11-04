@@ -82,7 +82,9 @@ class VisionAnalysisResult:
         return pd.DataFrame([asdict(row) for row in self.frames])
 
     def events_dataframe(self) -> pd.DataFrame:
-        return pd.DataFrame([asdict(row) for row in self.events])
+        return pd.DataFrame([asdict(row) for row in self.events], columns=(
+            "frame_index", "timestamp_s", "track_id", "event_type", "queue_count",
+        ))
 
     def labelling_sample(self, count: int) -> pd.DataFrame:
         if count < 1:

@@ -9,6 +9,7 @@ models/forecasting/*metadata.json
 *.mp4
 *.avi
 *.mov
+*.mkv
 processed_video/
 runs/
 *.pt

@@ -9,7 +9,7 @@ from src.vision.analyzer import (
 )
 from src.vision.config import validate_line, validate_polygon
 from src.vision.integration import project_vision_state, state_from_frame
-from src.vision.video_io import VideoMetadata, require_opencv
+from src.vision.video_io import VideoMetadata, require_opencv, uploaded_video_file
 from src.vision.tracking import TrackedPerson
 from src.vision.events import QueueEvent
 from src.vision.detector import Detection
@@ -104,6 +104,18 @@ def test_missing_opencv_error_is_actionable(monkeypatch):
     monkeypatch.setattr(builtins, "__import__", blocked)
     with pytest.raises(RuntimeError, match="requirements-vision.txt"):
         require_opencv()
+
+
+def test_uploaded_video_temp_copy_is_removed_after_inspection():
+    class Upload:
+        name = "qa.mp4"
+        def getbuffer(self):
+            return memoryview(b"temporary video bytes")
+
+    with uploaded_video_file(Upload()) as path:
+        assert path.read_bytes() == b"temporary video bytes"
+        parent = path.parent
+    assert not parent.exists()
 
 
 def test_optional_local_mp4_streaming_smoke(tmp_path):
