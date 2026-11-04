@@ -22,6 +22,28 @@ html, body, [data-testid="stAppViewContainer"] {
 .block-container {max-width:1550px;padding:0.65rem 1.7rem 2rem;}
 [data-testid="stVerticalBlock"] {gap:0.48rem;}
 [data-testid="stElementContainer"]:has(.qm-nav) {position:sticky;top:0;z-index:1000;}
+[data-testid="stElementContainer"]:has(.qm-product-header) {position:sticky;top:0;z-index:1000;}
+.qm-product-header {display:flex;align-items:center;justify-content:space-between;gap:18px;
+  min-height:55px;padding:6px 14px;border:1px solid var(--qm-border);border-radius:0 0 14px 14px;
+  background:rgba(255,255,255,.98);box-shadow:0 5px 22px rgba(23,59,99,.06);}
+.qm-product-brand {display:flex;align-items:center;color:var(--qm-navy);font-size:17px;}
+.qm-product-brand b {display:block;font-weight:800;line-height:1.2;}
+.qm-product-brand small {display:block;font-size:9px;color:var(--qm-muted);font-weight:600;}
+.qm-product-status {display:flex;align-items:center;gap:12px;font-size:10px;font-weight:700;color:#52677D;}
+.qm-context {display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding:6px 13px;
+  background:#EDF3F8;border:1px solid #DBE7F0;border-radius:9px;font-size:10px;color:var(--qm-navy);}
+.qm-context b {font-size:9px;letter-spacing:.055em;margin-right:4px;color:#75889B;}
+.qm-context-synthetic {margin-left:auto;font-weight:800;color:#B6493A;}
+[data-testid="stTabs"] [role="tablist"] {gap:8px;border-bottom:1px solid var(--qm-border);}
+[data-testid="stTabs"] [role="tab"] {border-radius:9px 9px 0 0;padding:8px 13px;
+  font-size:12px;font-weight:800;color:#597084;}
+[data-testid="stTabs"] [role="tab"][aria-selected="true"] {color:var(--qm-navy);background:#EDF3F8;}
+[data-testid="stTabs"] [role="tab"]:nth-child(2)[aria-selected="true"] {color:#A94034;background:#FFF0EB;}
+[data-testid="stTabs"] [role="tab"]:nth-child(3)[aria-selected="true"] {color:#2463B1;background:#EDF3FF;}
+[data-testid="stTabs"] [role="tab"]:nth-child(4)[aria-selected="true"] {color:#17764C;background:#EAF7F0;}
+[data-testid="stTabs"] [role="tab"]:nth-child(5)[aria-selected="true"] {color:#6B4EAA;background:#F4F0FF;}
+[data-testid="stTabs"] [role="tab"]:nth-child(6)[aria-selected="true"] {color:#117C70;background:#E9F7F4;}
+[data-testid="stTabs"] [role="tab"]:nth-child(7)[aria-selected="true"] {color:#9B670C;background:#FFF6E5;}
 h2, h3, p {color:var(--qm-ink);}
 h3 {font-size:1.15rem!important;margin:0.25rem 0!important;}
 button {transition:transform .16s ease,box-shadow .16s ease,border-color .16s ease!important;}
