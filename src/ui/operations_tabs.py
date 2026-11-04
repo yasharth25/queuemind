@@ -1,12 +1,15 @@
-"""Overview, live, forecast, and optimization surfaces for the product tabs."""
+"""Overview, live, forecast, optimization, vision, and evidence surfaces."""
 
+import importlib.util
 import pandas as pd
+import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
 from src.demo.live import SPEEDS, advance, pause, play
 from src.demo.scenarios import SCENARIOS
 from src.queueing.simulator import calculate_service_rate, recommend_counter_count
+from src.evaluation.vision import TEMPLATE_CSV, evaluate_vision_labels
 from src.ui.command_center import (
     SCENARIO_OPTIONS, _change_counters, _change_demand, _change_speed,
     _counter_cards, _forecast_chart, _heatmap, _history, _queue_counter_option,
@@ -239,12 +242,96 @@ def render_optimizer_tab(locations):
 
 
 def render_vision_tab():
-    st.markdown("### Vision Lab · optional local module")
-    _vision_card()
-    st.info("Real-video quantitative evaluation pending. No webcam or YOLO weights are required for this cloud demo.")
+    st.markdown("### Vision Lab · optional local person-only analytics")
+    st.caption("VIDEO → YOLO person detection → anonymous IoU tracking → queue ROI → entry/service events → queue statistics → forecasting → simulation → optimizer")
+    local_ready = all(importlib.util.find_spec(name) for name in ("cv2", "ultralytics"))
+    st.dataframe(pd.DataFrame([
+        {"Module": "Detector", "Status": "Implemented · local dependency required", "Privacy": "Person class only"},
+        {"Module": "Tracking", "Status": "Implemented · IoU baseline", "Privacy": "Temporary anonymous IDs"},
+        {"Module": "Queue ROI", "Status": "Implemented", "Privacy": "Only people inside configured polygon count"},
+        {"Module": "Entry/service events", "Status": "Implemented", "Privacy": "Anonymous crossings"},
+        {"Module": "Cloud camera", "Status": "Disabled", "Privacy": "No camera/video retention"},
+    ]), hide_index=True, width="stretch")
+    st.info("Local vision dependencies available on this machine." if local_ready else
+            "Cloud-safe mode: camera and YOLO are optional local-only dependencies. Simulation and CSV evaluation remain available.")
+    st.markdown("#### Manually labelled queue-count evaluation")
+    st.caption("Upload your own frame-level labels. QueueMind computes metrics from those rows only; it does not infer that the labels came from real campus footage.")
+    st.download_button("DOWNLOAD EMPTY VISION LABEL TEMPLATE", TEMPLATE_CSV,
+                       "vision_labels_template.csv", "text/csv")
+    version = st.session_state.get("qm_vision_upload_version", 0)
+    uploaded = st.file_uploader("Labelled CSV", type="csv", key=f"qm_vision_upload_{version}")
+    if uploaded is not None:
+        try:
+            metrics, frame = evaluate_vision_labels(pd.read_csv(uploaded))
+        except (ValueError, pd.errors.ParserError) as exc:
+            st.error(f"Unable to evaluate labels: {exc}")
+        else:
+            st.session_state.qm_vision_evaluation = metrics
+            st.session_state.qm_vision_frame = frame
+    metrics = st.session_state.get("qm_vision_evaluation")
+    frame = st.session_state.get("qm_vision_frame")
+    if metrics is None or frame is None:
+        st.info("Real-video quantitative evaluation pending. Upload labelled frame counts to calculate it.")
+    else:
+        cols = st.columns(4)
+        cols[0].metric("Labelled frames", metrics["labelled_frames"])
+        cols[1].metric("Queue Count MAE", f'{metrics["queue_count_mae"]:.3f}')
+        cols[2].metric("RMSE", f'{metrics["queue_count_rmse"]:.3f}')
+        cols[3].metric("Exact count", f'{metrics["exact_count_accuracy"]:.1%}')
+        st.caption(f'Within ±1 person: {metrics["within_one_person_accuracy"]:.1%} · signed error: {metrics["mean_signed_error"]:+.3f} · max absolute error: {metrics["max_absolute_error"]}. User-supplied label provenance has not been verified.')
+        figure = go.Figure()
+        figure.add_trace(go.Scatter(x=frame.frame_id, y=frame.ground_truth_queue_count, name="Ground truth", line_color="#173B63"))
+        figure.add_trace(go.Scatter(x=frame.frame_id, y=frame.predicted_queue_count, name="Predicted", line_color="#159A82"))
+        figure.update_layout(height=300, title="Ground truth vs predicted queue count")
+        st.plotly_chart(figure, width="stretch")
+        a, b = st.columns(2)
+        a.plotly_chart(px.histogram(frame, x="signed_error", title="Count error distribution"), width="stretch")
+        b.plotly_chart(px.bar(frame, x="frame_id", y="absolute_error", title="Per-frame absolute error"), width="stretch")
+        st.dataframe(frame, hide_index=True, width="stretch")
+        if st.button("CLEAR UPLOADED LABELS"):
+            st.session_state.pop("qm_vision_evaluation", None)
+            st.session_state.pop("qm_vision_frame", None)
+            st.session_state.qm_vision_upload_version = version + 1
+            st.rerun()
+    st.markdown("#### Local validation commands")
+    st.code('python -m scripts.vision_demo "C:\\path\\to\\queue_video.mp4"\npython -m scripts.evaluate_vision --labels "C:\\path\\to\\vision_labels.csv"', language="powershell")
+    st.caption("No face recognition, identity recognition, or automatic video retention. Real CCTV requires institutional permission.")
 
 
-def render_evaluation_tab():
-    st.markdown("### Evaluation · evidence status")
-    st.info("Forecasting uses held-out SYNTHETIC data. Run evaluation in ML Lab to inspect actual metrics.")
-    st.info("Real-video quantitative evaluation pending labelled footage.")
+def render_evaluation_tab(locations):
+    st.markdown("### Evaluation · quantitative evidence")
+    st.markdown("#### Forecasting · held-out SYNTHETIC observations")
+    if st.session_state.get("qm_ml_ready"):
+        from src.ui.ml_lab import metric_table
+        from src.ui.ml_service import evaluation_bundle
+
+        bundle = evaluation_bundle(tuple(locations))
+        st.dataframe(metric_table(bundle["metrics"]), hide_index=True, width="stretch")
+        horizon = st.select_slider("Actual vs predicted horizon", options=[5, 10, 20, 30], value=20)
+        frame = bundle["forecaster"].test_predictions[horizon].tail(240)
+        figure = go.Figure()
+        for column, label, color in (("actual", "Actual", "#173B63"), ("predicted", "ML", "#6B4EAA"), ("baseline", "Baseline", "#F36F5D")):
+            figure.add_trace(go.Scatter(x=frame.timestamp, y=frame[column], name=label, line_color=color))
+        figure.update_layout(height=300, title="Latest 240 held-out synthetic test rows · all facilities")
+        st.plotly_chart(figure, width="stretch")
+    else:
+        st.info("Forecast evaluation not run in this session. Open ML Lab → Overview and run it explicitly.")
+    st.markdown("#### Vision · manually labelled frame counts")
+    metrics = st.session_state.get("qm_vision_evaluation")
+    if metrics:
+        st.dataframe(pd.DataFrame([metrics]), hide_index=True, width="stretch")
+        st.caption("Calculated from user-supplied labels. Real-video provenance is not verified by the app.")
+    else:
+        st.info("Real-video quantitative evaluation pending. Upload labels in Vision Lab.")
+    st.markdown("#### System · SYNTHETIC counter what-if")
+    state = st.session_state.qm_live
+    view = snapshot(state)
+    current, proposed = view["recommendation"]["current_outcome"], view["recommendation"]["recommended_outcome"]
+    comparison = pd.DataFrame([
+        {"Configuration": "Current", **current},
+        {"Configuration": "Recommended", **proposed},
+    ])
+    st.dataframe(comparison, hide_index=True, width="stretch")
+    queue_reduction = current["future_queue"] - proposed["future_queue"]
+    wait_reduction = current["predicted_wait_minutes"] - proposed["predicted_wait_minutes"]
+    st.caption(f"Simulated +20-minute change: queue {queue_reduction:+.1f} fewer people; wait {wait_reduction:+.1f} fewer minutes. These are deterministic what-if outcomes, not measured intervention effects.")

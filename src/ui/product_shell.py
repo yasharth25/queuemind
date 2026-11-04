@@ -80,7 +80,7 @@ def render_product(locations):
         "Forecast": lambda: render_forecast_tab(locations),
         "Optimizer": lambda: render_optimizer_tab(locations),
         "Vision Lab": render_vision_tab,
-        "Evaluation": render_evaluation_tab,
+        "Evaluation": lambda: render_evaluation_tab(locations),
     }
     for name, tab in zip(TAB_NAMES, tabs):
         if tab.open:
