@@ -1,9 +1,12 @@
 """Vision Lab render checks without YOLO weights, webcam, or a real video."""
 
+from pathlib import Path
+
 from streamlit.testing.v1 import AppTest
 
 from src.vision.analyzer import VisionAnalysisResult, VisionEventRecord, VisionFrameResult
 from src.vision.video_io import VideoMetadata
+from src.vision.integration import VisionQueueState
 
 
 APP = "from src.ui.vision_lab import render_vision_lab\nrender_vision_lab()"
@@ -41,3 +44,18 @@ def test_analyzed_result_renders_metrics_timeline_and_forecast():
         app.query_params["vision_sections"] = section
         app.run(timeout=30)
         assert not app.exception, section
+
+
+def test_selected_vision_state_is_available_in_existing_operations_tabs():
+    app = AppTest.from_file(Path(__file__).resolve().parents[1] / "app.py")
+    app.session_state["qm_state_source"] = "VISION"
+    app.session_state["qm_vision_state"] = VisionQueueState("bank", 12, 1.2, 4, 1.5, .6, 2)
+    for section in ("Overview", "Forecast", "Optimizer"):
+        app.query_params["main_tabs"] = section
+        app.run(timeout=30)
+        assert not app.exception, section
+        assert any("SOURCE: LOCAL VIDEO ANALYSIS" in item.value for item in app.markdown)
+        assert [tab.label for tab in app.tabs] == [
+            "Overview", "Live Simulation", "Forecast", "Optimizer",
+            "ML Lab", "Vision Lab", "Evaluation",
+        ]

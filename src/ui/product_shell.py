@@ -34,6 +34,30 @@ def _ensure_state():
 
 
 def _header(state, view, location):
+    vision_state = st.session_state.get("qm_vision_state")
+    if st.session_state.get("qm_state_source") == "VISION" and vision_state is not None:
+        from src.vision.integration import project_vision_state
+        from src.config import get_location_by_id
+
+        vision_location = get_location_by_id(vision_state.location_id)
+        projection = project_vision_state(vision_state, vision_location)
+        name = escape(vision_location["display_name"])
+        st.markdown(
+            '<header class="qm-product-header">'
+            '<div class="qm-product-brand"><span class="qm-clock">◷</span>'
+            '<div><b>QueueMind</b><small>See now. Predict next. Act early.</small></div></div>'
+            '<div class="qm-product-status"><span class="qm-tag">SOURCE: LOCAL VIDEO ANALYSIS</span>'
+            f'<span class="qm-badge info">VIDEO FRAME {vision_state.frame_index}</span>'
+            f'<span>{name}</span></div></header>'
+            '<div class="qm-context">'
+            f'<span><b>FACILITY PROFILE</b> {name}</span>'
+            f'<span><b>OBSERVED QUEUE</b> {vision_state.current_queue}</span>'
+            f'<span><b>COUNTERS</b> {vision_state.active_counters}</span>'
+            f'<span><b>RECOMMENDED</b> {projection["recommendation"]["recommended_counters"]}</span>'
+            '<span>DETERMINISTIC PROJECTION · VIDEO-RELATIVE TIME</span></div>',
+            unsafe_allow_html=True,
+        )
+        return
     if state["simulation_running"]:
         status = "LIVE"
     elif state["complete"]:

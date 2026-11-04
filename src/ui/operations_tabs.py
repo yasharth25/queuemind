@@ -1,15 +1,12 @@
 """Overview, live, forecast, optimization, vision, and evidence surfaces."""
 
-import importlib.util
 import pandas as pd
-import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
 from src.demo.live import SPEEDS, advance, pause, play
 from src.demo.scenarios import SCENARIOS
 from src.queueing.simulator import calculate_service_rate, recommend_counter_count
-from src.evaluation.vision import TEMPLATE_CSV, evaluate_vision_labels
 from src.ui.command_center import (
     SCENARIO_OPTIONS, _change_counters, _change_demand, _change_speed,
     _counter_cards, _forecast_chart, _heatmap, _history, _queue_counter_option,
@@ -62,6 +59,10 @@ def _location(state, locations):
 
 
 def render_overview_tab(locations):
+    if st.session_state.get("qm_state_source") == "VISION":
+        from src.ui.vision_lab import render_shared_vision_state
+        if render_shared_vision_state(locations, "Overview"):
+            return
     state = st.session_state.qm_live
     _controls(state)
 
@@ -118,6 +119,8 @@ def render_overview_tab(locations):
 
 
 def render_live_tab(locations):
+    if st.session_state.get("qm_state_source") == "VISION":
+        st.info("This Live Simulation tab remains SYNTHETIC and is independent of the selected local-video state. Overview, Forecast, and Optimizer use the selected video state.")
     state = st.session_state.qm_live
     _controls(state)
 
@@ -170,6 +173,10 @@ def _live_charts(state, view):
 
 
 def render_forecast_tab(locations):
+    if st.session_state.get("qm_state_source") == "VISION":
+        from src.ui.vision_lab import render_shared_vision_state
+        if render_shared_vision_state(locations, "Forecast"):
+            return
     state = st.session_state.qm_live
     view = snapshot(state)
     st.markdown("### Forecast · deterministic scenario projection")
@@ -209,6 +216,10 @@ def render_forecast_tab(locations):
 
 
 def render_optimizer_tab(locations):
+    if st.session_state.get("qm_state_source") == "VISION":
+        from src.ui.vision_lab import render_shared_vision_state
+        if render_shared_vision_state(locations, "Optimizer"):
+            return
     state = st.session_state.qm_live
     view = snapshot(state)
     st.markdown("### Counter optimizer · simulated decision support")
@@ -248,60 +259,8 @@ def render_optimizer_tab(locations):
 
 
 def render_vision_tab():
-    st.markdown("### Vision Lab · optional local person-only analytics")
-    st.caption("VIDEO → YOLO person detection → anonymous IoU tracking → queue ROI → entry/service events → queue statistics → forecasting → simulation → optimizer")
-    local_ready = all(importlib.util.find_spec(name) for name in ("cv2", "ultralytics"))
-    st.dataframe(pd.DataFrame([
-        {"Module": "Detector", "Status": "Implemented · local dependency required", "Privacy": "Person class only"},
-        {"Module": "Tracking", "Status": "Implemented · IoU baseline", "Privacy": "Temporary anonymous IDs"},
-        {"Module": "Queue ROI", "Status": "Implemented", "Privacy": "Only people inside configured polygon count"},
-        {"Module": "Entry/service events", "Status": "Implemented", "Privacy": "Anonymous crossings"},
-        {"Module": "Cloud camera", "Status": "Disabled", "Privacy": "No camera/video retention"},
-    ]), hide_index=True, width="stretch")
-    st.info("Local vision dependencies available on this machine." if local_ready else
-            "Cloud-safe mode: camera and YOLO are optional local-only dependencies. Simulation and CSV evaluation remain available.")
-    st.markdown("#### Manually labelled queue-count evaluation")
-    st.caption("Upload your own frame-level labels. QueueMind computes metrics from those rows only; it does not infer that the labels came from real campus footage.")
-    st.download_button("DOWNLOAD EMPTY VISION LABEL TEMPLATE", TEMPLATE_CSV,
-                       "vision_labels_template.csv", "text/csv")
-    version = st.session_state.get("qm_vision_upload_version", 0)
-    uploaded = st.file_uploader("Labelled CSV", type="csv", key=f"qm_vision_upload_{version}")
-    if uploaded is not None:
-        try:
-            metrics, frame = evaluate_vision_labels(pd.read_csv(uploaded))
-        except (ValueError, pd.errors.ParserError) as exc:
-            st.error(f"Unable to evaluate labels: {exc}")
-        else:
-            st.session_state.qm_vision_evaluation = metrics
-            st.session_state.qm_vision_frame = frame
-    metrics = st.session_state.get("qm_vision_evaluation")
-    frame = st.session_state.get("qm_vision_frame")
-    if metrics is None or frame is None:
-        st.info("Real-video quantitative evaluation pending. Upload labelled frame counts to calculate it.")
-    else:
-        cols = st.columns(4)
-        cols[0].metric("Labelled frames", metrics["labelled_frames"])
-        cols[1].metric("Queue Count MAE", f'{metrics["queue_count_mae"]:.3f}')
-        cols[2].metric("RMSE", f'{metrics["queue_count_rmse"]:.3f}')
-        cols[3].metric("Exact count", f'{metrics["exact_count_accuracy"]:.1%}')
-        st.caption(f'Within ±1 person: {metrics["within_one_person_accuracy"]:.1%} · signed error: {metrics["mean_signed_error"]:+.3f} · max absolute error: {metrics["max_absolute_error"]}. User-supplied label provenance has not been verified.')
-        figure = go.Figure()
-        figure.add_trace(go.Scatter(x=frame.frame_id, y=frame.ground_truth_queue_count, name="Ground truth", line_color="#173B63"))
-        figure.add_trace(go.Scatter(x=frame.frame_id, y=frame.predicted_queue_count, name="Predicted", line_color="#159A82"))
-        figure.update_layout(height=300, title="Ground truth vs predicted queue count")
-        st.plotly_chart(figure, width="stretch")
-        a, b = st.columns(2)
-        a.plotly_chart(px.histogram(frame, x="signed_error", title="Count error distribution"), width="stretch")
-        b.plotly_chart(px.bar(frame, x="frame_id", y="absolute_error", title="Per-frame absolute error"), width="stretch")
-        st.dataframe(frame, hide_index=True, width="stretch")
-        if st.button("CLEAR UPLOADED LABELS"):
-            st.session_state.pop("qm_vision_evaluation", None)
-            st.session_state.pop("qm_vision_frame", None)
-            st.session_state.qm_vision_upload_version = version + 1
-            st.rerun()
-    st.markdown("#### Local validation commands")
-    st.code('python -m scripts.vision_demo "C:\\path\\to\\queue_video.mp4"\npython -m scripts.evaluate_vision --labels "C:\\path\\to\\vision_labels.csv"', language="powershell")
-    st.caption("No face recognition, identity recognition, or automatic video retention. Real CCTV requires institutional permission.")
+    from src.ui.vision_lab import render_vision_lab
+    render_vision_lab()
 
 
 def render_evaluation_tab(locations):
