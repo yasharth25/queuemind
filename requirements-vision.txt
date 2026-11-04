@@ -1,4 +1,4 @@
-# Optional local-only dependencies for scripts/vision_demo.py.
+# Optional local-only dependencies for Vision Lab video analysis and scripts/vision_demo.py.
 # Keep these out of Streamlit Community Cloud's academic simulation deployment.
 -r requirements.txt
 opencv-python

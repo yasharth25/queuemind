@@ -59,3 +59,22 @@ def test_selected_vision_state_is_available_in_existing_operations_tabs():
             "Overview", "Live Simulation", "Forecast", "Optimizer",
             "ML Lab", "Vision Lab", "Evaluation",
         ]
+
+
+def test_session_held_upload_remains_available_after_widget_tab_unmount():
+    class Upload:
+        name = "clip.mp4"
+        def getbuffer(self):
+            return memoryview(b"small test clip")
+
+    script = (
+        "import streamlit as st\n"
+        "from src.ui.vision_lab import _source_context\n"
+        "with _source_context() as path:\n"
+        "    st.write(path.read_bytes().decode())\n"
+    )
+    app = AppTest.from_string(script)
+    app.session_state["qm_vision_upload_keep"] = Upload()
+    app.run(timeout=30)
+    assert not app.exception
+    assert any("small test clip" in item.value for item in app.markdown)
