@@ -14,7 +14,7 @@ from src.demo.live import (
 )
 from src.demo.scenarios import SCENARIOS
 from src.forecasting.forecaster import ArrivalForecaster
-from src.queueing.simulator import evaluate_counter_counts
+from src.queueing.simulator import calculate_service_rate, evaluate_counter_counts
 from src.synthetic.generator import generate_synthetic_queue_data
 from src.ui.command_model import (
     HORIZONS, TIME_SLOTS, WEEKDAYS, alert_items, heatmap_data,
@@ -97,7 +97,7 @@ def _evaluation(locations):
 
 def _forecast_chart(state, view, history):
     metric = st.radio(
-        "Forecast metric", ("QUEUE", "WAIT TIME", "ARRIVAL RATE"),
+        "Forecast metric", ("QUEUE", "WAIT TIME", "ARRIVAL RATE", "SERVICE RATE"),
         horizontal=True, label_visibility="collapsed", key="qm_chart_metric",
     )
     config = view["config"]
@@ -106,7 +106,7 @@ def _forecast_chart(state, view, history):
     use_live_queue = metric == "QUEUE" and len(live_history) > 1
     x_past = list(range(-55, 5, 5))
     if metric == "QUEUE":
-        shift = config["queue"] - float(prior["queue_count"].iloc[-1])
+        shift = view["queue"] - float(prior["queue_count"].iloc[-1])
         y_past = (prior["queue_count"] + shift).clip(lower=0).tolist()
         y_future = [point["queue"] for point in view["timeline"]]
         if use_live_queue:
@@ -117,16 +117,21 @@ def _forecast_chart(state, view, history):
         threshold = config["warning"]
         y_label = "People waiting"
     elif metric == "WAIT TIME":
-        shift = config["queue"] - float(prior["queue_count"].iloc[-1])
+        shift = view["queue"] - float(prior["queue_count"].iloc[-1])
         adjusted = (prior["queue_count"] + shift).clip(lower=0)
         y_past = (adjusted / view["service_rate"]).tolist()
         y_future = [point["wait"] for point in view["timeline"]]
         threshold = config["target_wait"]
         y_label = "Minutes"
-    else:
+    elif metric == "ARRIVAL RATE":
         y_past = prior["arrival_rate"].tolist()
         y_future = [view["arrival_rate"]] * 5
         threshold = view["service_rate"]
+        y_label = "People / min"
+    else:
+        y_past = prior["service_rate"].tolist()
+        y_future = [view["service_rate"]] * 5
+        threshold = view["arrival_rate"]
         y_label = "People / min"
     # The prehistory is deterministic, synthetic, and shifted to connect to
     # the scenario snapshot; it is context, not measured campus observations.
@@ -166,11 +171,14 @@ def _forecast_chart(state, view, history):
     st.caption(f"SYNTHETIC {context} · deterministic queue simulation, not a trained-model prediction.")
 
 
-def _counter_cards(state, view):
-    options = [item for item in view["options"] if item["active_counters"] <= 6]
+def _counter_cards(state, view, full=False):
+    options = [item for item in view["options"] if full or item["active_counters"] <= 6
+               or item["active_counters"] in {state["active_counters"], view["recommendation"]["recommended_counters"]}]
     max_wait = max(item["predicted_wait_minutes"] for item in options) or 1
-    columns = st.columns(len(options))
     recommended = view["recommendation"]["recommended_counters"]
+    columns = []
+    for start in range(0, len(options), 4 if full else len(options)):
+        columns.extend(st.columns(min(4, len(options) - start) if full else len(options)))
     for column, option in zip(columns, options):
         count = option["active_counters"]
         risk = risk_for(option["future_queue"], option["predicted_wait_minutes"], view["config"])
@@ -185,6 +193,7 @@ def _counter_cards(state, view):
                 f'{option["future_queue"]:.0f} people</div>'
                 f'<span class="qm-badge {risk}">{risk.upper()}</span>'
                 f'<div class="qm-mini-bar"><i style="width:{width}%"></i></div>'
+                f'<div class="qm-muted">Capacity {calculate_service_rate(count, view["config"]["service_time"]):.2f}/min</div>'
                 f'<div class="qm-muted">{count} staffing slot{"s" if count != 1 else ""} · +20 min</div></div>',
                 unsafe_allow_html=True,
             )
@@ -288,13 +297,19 @@ def _heatmap(location, state):
 def _vision_card():
     local_ready = all(importlib.util.find_spec(name) for name in ("cv2", "ultralytics"))
     status = "Local dependencies available" if local_ready else "Install local vision dependencies to run"
+    evaluation = st.session_state.get("qm_vision_evaluation")
+    evidence = (
+        f'User-supplied labels: Queue Count MAE {evaluation["queue_count_mae"]:.3f} '
+        f'on {evaluation["labelled_frames"]} frames; provenance unverified.'
+        if evaluation else "Quantitative real-video queue-count evaluation: pending."
+    )
     st.markdown(
         '<div class="qm-panel blue"><div class="qm-label">VISION PIPELINE / OPTIONAL LOCAL MODULE</div>'
         f'<h3>{status}</h3><div class="qm-flow">'
-        '<span>VIDEO</span><span>PERSON DETECTION</span><span>ANONYMOUS TRACKING</span>'
-        '<span>QUEUE ROI</span><span>QUEUE STATS</span></div>'
+        '<span>VIDEO</span><span>PERSON DETECTION</span><span>ANONYMOUS IoU TRACKING</span>'
+        '<span>QUEUE ROI</span><span>ENTRY / SERVICE</span><span>QUEUE STATS</span></div>'
         '<p class="qm-muted">Cloud live camera: LOCAL ONLY. No face recognition, identity tracking, '
-        'or raw-video retention by default. Quantitative queue-count accuracy: not evaluated yet.</p></div>',
+        f'or raw-video retention by default. {evidence}</p></div>',
         unsafe_allow_html=True,
     )
 

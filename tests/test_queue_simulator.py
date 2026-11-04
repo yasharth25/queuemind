@@ -162,6 +162,22 @@ def test_optimizer_reports_when_no_candidate_meets_target():
     assert result["recommended_counters"] == 3
 
 
+def test_optimizer_explains_smaller_feasible_capacity_truthfully():
+    result = recommend_counter_count(
+        current_queue=20,
+        arrival_rate_per_minute=1,
+        average_service_time_minutes=2,
+        current_counters=6,
+        target_wait_minutes=3,
+        horizon_minutes=10,
+        candidate_counts=[2, 3, 4, 5, 6],
+    )
+    assert result["recommended_counters"] == 5
+    assert result["current_outcome"]["predicted_wait_minutes"] <= 3
+    assert "current" in result["reason"]
+    assert "meets the target" in result["reason"]
+
+
 @pytest.mark.parametrize(
     ("queue", "expected"),
     [(0, "normal"), (10, "warning"), (20, "critical")],

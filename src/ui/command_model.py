@@ -51,7 +51,7 @@ def snapshot(state):
         queue, arrival_rate, config["service_time"], counters,
         config["target_wait"], 20, list(range(1, 9)),
     )
-    candidates = sorted(set(range(1, 7)) | {
+    candidates = sorted(set(range(1, 9)) | {
         counters, recommendation["recommended_counters"]
     })
     options = evaluate_counter_counts(

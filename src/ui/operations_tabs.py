@@ -15,14 +15,14 @@ from src.ui.command_center import (
     _counter_cards, _forecast_chart, _heatmap, _history, _queue_counter_option,
     _reset, _select_scenario, _surge, _vision_card,
 )
-from src.ui.command_model import HORIZONS, alert_items, snapshot
+from src.ui.command_model import HORIZONS, alert_items, risk_for, snapshot
 from src.ui.command_views import (
     action_center, alert_feed, event_stream, kpi_strip, live_queue, timeline,
 )
 
 
 def _controls(state):
-    st.markdown('<div class="qm-label">SYNTHETIC SCENARIO CONTROLS</div>', unsafe_allow_html=True)
+    st.caption("SYNTHETIC SCENARIO CONTROLS")
     choices = st.columns(4)
     for column, (name, label) in zip(choices, SCENARIO_OPTIONS):
         with column:
@@ -213,7 +213,7 @@ def render_optimizer_tab(locations):
     view = snapshot(state)
     st.markdown("### Counter optimizer · simulated decision support")
     st.caption("SYNTHETIC +20-minute outcomes · click Apply to update the shared simulation state.")
-    _counter_cards(state, view)
+    _counter_cards(state, view, full=True)
     current = view["recommendation"]["current_outcome"]
     proposed = view["recommendation"]["recommended_outcome"]
     current_rate = calculate_service_rate(state["active_counters"], view["config"]["service_time"])
@@ -224,15 +224,21 @@ def render_optimizer_tab(locations):
         st.metric("Counters", state["active_counters"])
         st.metric("+20 queue", f'{current["future_queue"]:.0f}')
         st.metric("+20 wait", f'{current["predicted_wait_minutes"]:.1f} min')
+        st.metric("Risk", risk_for(current["future_queue"], current["predicted_wait_minutes"], view["config"]).upper())
         st.caption(f"Service capacity {current_rate:.2f} people/min")
     with right:
         st.markdown("#### Recommended configuration")
         st.metric("Counters", view["recommendation"]["recommended_counters"])
         st.metric("+20 queue", f'{proposed["future_queue"]:.0f}')
         st.metric("+20 wait", f'{proposed["predicted_wait_minutes"]:.1f} min')
+        st.metric("Risk", risk_for(proposed["future_queue"], proposed["predicted_wait_minutes"], view["config"]).upper())
         st.caption(f"Service capacity {proposed_rate:.2f} people/min")
     st.markdown("#### Why this number of counters?")
     st.write(view["recommendation"]["reason"])
+    if current["future_queue"]:
+        st.metric("Simulated queue reduction", f'{(current["future_queue"] - proposed["future_queue"]) / current["future_queue"]:.1%}')
+    if current["predicted_wait_minutes"]:
+        st.metric("Simulated wait reduction", f'{(current["predicted_wait_minutes"] - proposed["predicted_wait_minutes"]) / current["predicted_wait_minutes"]:.1%}')
     st.caption(
         f'Target wait {view["config"]["target_wait"]} min · '
         f'forecast demand {view["arrival_rate"]:.2f} people/min · '
@@ -334,4 +340,4 @@ def render_evaluation_tab(locations):
     st.dataframe(comparison, hide_index=True, width="stretch")
     queue_reduction = current["future_queue"] - proposed["future_queue"]
     wait_reduction = current["predicted_wait_minutes"] - proposed["predicted_wait_minutes"]
-    st.caption(f"Simulated +20-minute change: queue {queue_reduction:+.1f} fewer people; wait {wait_reduction:+.1f} fewer minutes. These are deterministic what-if outcomes, not measured intervention effects.")
+    st.caption(f"Simulated +20-minute reduction: queue {queue_reduction:+.1f} people; wait {wait_reduction:+.1f} minutes. Negative values mean the proposed state is worse. These are deterministic what-if outcomes, not measured intervention effects.")

@@ -193,6 +193,13 @@ def recommend_counter_count(
             f"{current['predicted_wait_minutes']:.2f} minutes meets the "
             f"{target_wait_minutes:.2f}-minute target with current capacity."
         )
+    elif meets_target and recommended["active_counters"] < current_counters:
+        reason = (
+            f"The simulated {horizon_minutes}-minute wait of "
+            f"{current['predicted_wait_minutes']:.2f} minutes with current capacity meets the target, "
+            f"but {recommended['active_counters']} counters is the smallest tested "
+            f"capacity that also meets the {target_wait_minutes:.2f}-minute target."
+        )
     elif meets_target:
         reason = (
             f"The simulated {horizon_minutes}-minute wait exceeds the target "

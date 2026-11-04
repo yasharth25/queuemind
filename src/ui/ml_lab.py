@@ -17,7 +17,7 @@ SECTIONS = ("Overview", "Data", "Features", "Training", "Models", "Predictions",
 
 def _bundle(locations):
     if not st.session_state.get("qm_ml_ready"):
-        st.info("Evaluation has not run in this session. Select RUN / REFRESH on ML Overview; no metric is fabricated.")
+        st.info("Evaluation has not run in this session. Select RUN ML EVALUATION on ML Overview; no metric is fabricated.")
         return None
     with st.spinner("Loading cached synthetic evaluation…"):
         return evaluation_bundle(tuple(locations))
@@ -48,7 +48,7 @@ def _overview(locations, data):
         st.metric("Synthetic observations", f"{len(data):,}")
         st.metric("Configured facilities", data.location_id.nunique())
         st.metric("Actual model features", len(FEATURE_COLUMNS))
-    if st.button("RUN / REFRESH ML EVALUATION", key="qm_run_ml", type="primary"):
+    if st.button("RUN ML EVALUATION", key="qm_run_ml", type="primary"):
         st.session_state.qm_ml_ready = True
     bundle = _bundle(locations)
     if bundle:
@@ -107,10 +107,21 @@ def _predictions(locations, data):
     chart.update_layout(height=350, yaxis_title="Arrivals per 5-minute interval")
     st.plotly_chart(chart, width="stretch")
     st.caption("The target is arrival count in the future interval, not cumulative arrivals. Latest 240 held-out rows shown for readability.")
+    from src.ui.command_model import snapshot
+
+    current_state = st.session_state.qm_live
+    scenario = snapshot(current_state)
+    st.markdown("#### Current simulation context · not ML input")
+    st.caption(
+        f'SYNTHETIC {current_state["selected_scenario"]}: queue {scenario["queue"]:.0f}, '
+        f'{current_state["active_counters"]} counters, arrivals {scenario["arrival_rate"]:.2f}/min, '
+        f'service {scenario["service_rate"]:.2f}/min. The live scenario does not have a matching observation-history window, '
+        'so the ML inference below uses a separate latest generated synthetic history. The Forecast tab remains a deterministic scenario projection.'
+    )
     history = data[data.location_id.eq(facility)]
     inputs = build_features(history).iloc[-1]
     st.markdown("#### Latest SYNTHETIC model-input snapshot")
-    st.dataframe(pd.DataFrame({"Feature": FEATURE_COLUMNS, "Value": [inputs[name] for name in FEATURE_COLUMNS]}), hide_index=True, width="stretch")
+    st.dataframe(pd.DataFrame({"Feature": FEATURE_COLUMNS, "Value": [str(inputs[name]) for name in FEATURE_COLUMNS]}), hide_index=True, width="stretch")
     predictions = bundle["forecaster"].forecast(facility, history)
     st.dataframe(pd.DataFrame([{"Horizon": f"+{h} min", "Predicted interval arrivals": value["predicted_arrivals"], "Method": value["method"]} for h, value in predictions.items()]), hide_index=True, width="stretch")
     st.caption("Input is the latest generated observation, not the current live simulation or measured campus operations.")

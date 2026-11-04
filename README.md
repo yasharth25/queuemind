@@ -9,7 +9,7 @@ Interactive AI/ML queue forecasting, simulation and counter-optimization prototy
 **Live demo:** https://queuemind-nitr.streamlit.app/  
 The live demo tracks the stable `main` branch, so tested pushes are reflected in the deployed application.
 
-QueueMind is a presentation-ready prototype for queue simulation, synthetic demand forecasting, counter optimisation, and privacy-preserving person-only queue analytics. Its single-page Command Center is an offline professor demonstration. **Synthetic data is not real NIT Rourkela operational data.**
+QueueMind is an academic prototype for queue simulation, synthetic demand forecasting, counter optimisation, and privacy-preserving person-only queue analytics. Its seven-tab Streamlit workspace is a professor demonstration. **Synthetic data is not real NIT Rourkela operational data.**
 
 ## Streamlit Community Cloud academic demo
 
@@ -28,9 +28,9 @@ Configuration → synthetic data/SQLite storage → forecasting features and reg
 - **Queue and wait:** queue evolution is deterministic, never negative; wait is queued people divided by total service capacity.
 - **Counter optimisation:** tests candidate capacities against the configured target wait; no hardcoded recommendations.
 - **Synthetic data:** time-of-day category profiles generate physically consistent rows labelled `SYNTHETIC`.
-- **ML:** chronological splits, past-only lag/rolling features, rolling-arrival baseline, and `HistGradientBoostingRegressor`; MAE, RMSE, and meaningful R² are compared on held-out synthetic data.
+- **ML:** past-only lag/rolling features and a global, non-overlapping chronological train/validation/test split. Final fitting combines train and validation; rows whose future target crosses into test are excluded. Four `HistGradientBoostingRegressor` models predict future five-minute arrival counts. A past-three-arrivals rolling baseline is evaluated on the identical held-out rows. MAE, RMSE, and meaningful R² are shown separately per horizon.
 - **Vision/ROI/tracking:** YOLO detects only people, temporary anonymous IDs are tracked with IoU, and only bottom-centre points inside a normalized queue polygon count as queued.
-- **Evaluation:** forecasting metrics are calculated on demand from held-out synthetic data. CV queue-count MAE requires manually labelled samples with `frame_id,ground_truth_queue_count,predicted_queue_count`.
+- **Evaluation:** forecasting metrics are calculated only when requested in ML Lab. Held-out residuals, permutation importance on a held-out subset, and empirical absolute-error bands are available. These bands are **not** formal calibrated confidence intervals. Vision queue-count metrics require manually labelled samples with `frame_id,ground_truth_queue_count,predicted_queue_count`; no vision accuracy is claimed without such labels.
 
 ## Privacy and responsible AI
 
@@ -46,16 +46,20 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m scripts.generate_synthetic_data --days 60
 .\.venv\Scripts\python.exe -m scripts.vision_demo "C:\path\to\video.mp4"
 .\.venv\Scripts\python.exe -m scripts.vision_demo 0
+.\.venv\Scripts\python.exe -m scripts.evaluate_vision --labels "C:\path\to\vision_labels.csv"
+.\.venv\Scripts\python.exe -m scripts.evaluate_vision --labels "C:\path\to\vision_labels.csv" --output-csv "C:\path\to\per_frame_errors.csv"
 ```
 
 For a local vision environment, install `requirements-vision.txt` instead of the cloud-focused core requirements.
 
-Open the single-page Command Center; it starts with a non-zero, deterministic **SYNTHETIC Canteen Lunch Rush** snapshot. Choose another scenario or facility, adjust counters/demand, and use Play, Pause, Reset or Trigger Surge. The live queue, action panel, timeline, forecast chart, alerts, events, counter comparisons, heatmap, Vision status and model evaluation all appear on this page. The simulation remains usable without a camera, YOLO weights, a network connection, or trained model artifacts. The visible live projection is deterministic queue simulation; the ML summary is a separate held-out synthetic evaluation.
+Open the app; it starts in Overview with a non-zero, deterministic **SYNTHETIC Canteen Lunch Rush** snapshot. Seven URL-linked tabs are available: Overview, Live Simulation, Forecast, Optimizer, ML Lab, Vision Lab, and Evaluation. The scenario controls adjust counters, demand, and accelerated time; Play, Pause, Reset, and Surge preserve state while switching tabs. Overview shows the queue, action, timeline, alerts, counter what-if, heatmap, and ML/Vision snapshots. Forecast and Optimizer use deterministic queue mathematics, not a hidden ML model. ML Lab has eleven selectable lifecycle sections: synthetic data explorer/download, feature catalog, training split, model settings, held-out predictions/metrics, residuals, held-out permutation importance, empirical error bands, and integrity. Run its evaluation explicitly; it is cached, not retrained every second. Vision Lab provides an empty label template and accepts an in-memory labelled CSV for queue-count evaluation. Evaluation summarizes only evidence actually calculated in this session.
+
+The simulation works without a camera, YOLO weights, network connection, live campus data, or persistent model artifact. Local YOLO/video processing is separate from the cloud deployment. Cloud camera access is disabled. An uploaded labelled CSV is not saved by the app, and its provenance is not automatically verified.
 
 ## Structure
 
-`src/config.py` configuration; `src/synthetic` synthetic generator; `src/storage` SQLite repository; `src/queueing` mathematics; `src/forecasting` feature/model/integration code; `src/vision` optional anonymous vision; `src/demo` scenarios/live state; `src/ui/command_center.py` single-page Streamlit composition with reusable presentation helpers. Legacy page helpers remain for development but are not part of the primary navigation.
+`app.py` composes `src/ui/product_shell.py` (seven-tab navigation), `operations_tabs.py` (operations/vision/evidence), and the lazy `ml_lab.py`, `ml_data.py`, and `ml_diagnostics.py` views. `src/config.py` holds configuration; `src/synthetic` generates synthetic observations; `src/storage` is optional SQLite storage; `src/queueing` contains deterministic math; `src/forecasting` contains feature/model/integration code; `src/evaluation` contains pure metrics; `src/vision` is optional anonymous local vision; `src/demo` holds scenarios/live state. `command_center.py` retains reusable presentation helpers and a legacy renderer, not the active entrypoint.
 
 ## Limitations and future work
 
-The model is evaluated only on synthetic data. Vision is code-tested but needs local video/webcam calibration and quantitative labelled-footage evaluation. Future work includes validated ByteTrack integration, location camera configuration, real authorised data collection, and production deployment controls.
+The model is evaluated only on synthetic data. Current ML targets are future **interval** arrival counts, not cumulative horizon demand. The visible live forecast is a deterministic scenario projection; ML Lab inference on the latest synthetic observation is separately labelled. Empirical bands use global held-out error quantiles and are not calibrated probabilities. Vision uses an IoU anonymous-tracking baseline, not ByteTrack; it is code-tested but needs local video/webcam calibration and real labelled-footage evaluation. Future work includes validated ByteTrack integration, location camera configuration, authorised real data collection, drift assessment, and production deployment controls.

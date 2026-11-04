@@ -1,7 +1,9 @@
 import pandas as pd
 import pytest
+import sys
 
 from src.evaluation.vision import TEMPLATE_CSV, evaluate_vision_labels, validate_vision_labels
+from scripts.evaluate_vision import main
 
 
 def test_vision_evaluation_uses_only_supplied_labels():
@@ -33,3 +35,15 @@ def test_invalid_label_csv_is_rejected(bad):
 
 def test_download_template_contains_only_schema_not_fake_results():
     assert TEMPLATE_CSV == "frame_id,ground_truth_queue_count,predicted_queue_count\n"
+
+
+def test_standalone_vision_evaluation_command(monkeypatch, capsys):
+    labels = pd.DataFrame({"frame_id": ["f1", "f2"],
+                           "ground_truth_queue_count": [2, 4],
+                           "predicted_queue_count": [3, 4]})
+    monkeypatch.setattr(pd, "read_csv", lambda _: labels)
+    monkeypatch.setattr(sys, "argv", ["evaluate_vision", "--labels", "labels.csv"])
+    main()
+    output = capsys.readouterr().out
+    assert "Queue Count MAE: 0.5000 people" in output
+    assert "Labelled frames: 2" in output

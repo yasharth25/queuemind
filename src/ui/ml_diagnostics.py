@@ -152,6 +152,6 @@ def render_integrity(locations, data, bundle):
                "Observation interval · min": SYNTHETIC_FREQUENCY_MINUTES,
                "Forecast horizons · min": ", ".join(map(str, DEFAULT_HORIZONS)),
                "Evaluation session": bundle["evaluated_at"].isoformat() if bundle else "Not evaluated in this session"}
-    st.dataframe(pd.DataFrame([{"Setting": key, "Value": value} for key, value in details.items()]), hide_index=True, width="stretch")
+    st.dataframe(pd.DataFrame([{"Setting": key, "Value": str(value)} for key, value in details.items()]), hide_index=True, width="stretch")
     st.markdown("#### Limitations")
     st.info("Training and evaluation use synthetic data only; there is no measured NIT Rourkela performance claim. Future campus behavior and sudden events may differ. Representative history is required; vision errors can propagate into forecasts. The displayed empirical bands are not calibrated probabilistic confidence intervals.")
