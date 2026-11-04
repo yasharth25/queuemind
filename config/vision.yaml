@@ -1,0 +1,11 @@
+# Camera geometry is a calibration starting point, not measured campus data.
+default_roi:
+  - [0.18, 0.24]
+  - [0.82, 0.24]
+  - [0.82, 0.88]
+  - [0.18, 0.88]
+entry_line: [[0.18, 0.28], [0.82, 0.28]]
+service_line: [[0.18, 0.82], [0.82, 0.82]]
+model_path: yolo11n.pt
+confidence: 0.35
+rate_window_seconds: 60

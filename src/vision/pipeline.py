@@ -14,12 +14,13 @@ class VisionQueuePipeline:
     def process_frame(self, frame, timestamp: datetime | None=None):
         self.frame_number+=1
         if (self.frame_number-1) % self.detector.frame_skip: return {"processed":False}
-        tracks=self.tracker.update(self.detector.detect(frame))
+        detections=self.detector.detect(frame)
+        tracks=self.tracker.update(detections)
         height,width=frame.shape[:2]
         roi=classify_queue_people(tracks,self.roi,width,height)
         events=self.events.update(tracks,timestamp)
         if self.repository: self.events.persist(events,self.repository)
-        return {"processed":True,"tracks":tracks,"queue":roi,"events":events}
+        return {"processed":True,"detections":detections,"tracks":tracks,"queue":roi,"events":events}
     def forecast(self, observation_history):
         if self.forecaster is None: raise RuntimeError("A forecaster is required for demand and queue projections.")
         return forecast_queue_outcomes(self.forecaster,self.location,observation_history)

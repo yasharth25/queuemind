@@ -21,7 +21,12 @@ class PersonDetector:
 
     def _load_model(self):
         if self._model is None:
-            from ultralytics import YOLO
+            try:
+                from ultralytics import YOLO
+            except ImportError as exc:
+                raise RuntimeError(
+                    "Local Vision Mode requires Ultralytics. Install requirements-vision.txt."
+                ) from exc
             self._model = YOLO(self.model_path)
         return self._model
 
