@@ -43,6 +43,7 @@ def build_features(observations: pd.DataFrame, horizons: list[int] | None = None
     for horizon in horizons:
         steps = max(1, horizon // inferred_minutes)
         data[f"target_arrivals_{horizon}m"] = grouped.arrivals.shift(-steps)
+        data[f"target_timestamp_{horizon}m"] = grouped.timestamp.shift(-steps)
     return data
 
 
@@ -50,7 +51,16 @@ def chronological_split(data: pd.DataFrame, train_fraction: float = .7, validati
     """Split globally time-ordered data into train/validation/test partitions."""
     if not 0 < train_fraction < 1 or not 0 < validation_fraction < 1 or train_fraction + validation_fraction >= 1:
         raise ValueError("Fractions must be positive and leave a test partition.")
-    ordered = data.sort_values("timestamp").reset_index(drop=True)
-    train_end = int(len(ordered) * train_fraction)
-    valid_end = int(len(ordered) * (train_fraction + validation_fraction))
-    return ordered.iloc[:train_end], ordered.iloc[train_end:valid_end], ordered.iloc[valid_end:]
+    ordered = data.sort_values(["timestamp", "location_id"]).reset_index(drop=True)
+    timestamps = ordered["timestamp"].drop_duplicates().sort_values().reset_index(drop=True)
+    if len(timestamps) < 3:
+        raise ValueError("At least three distinct timestamps are required for chronological splitting.")
+    train_end = max(1, int(len(timestamps) * train_fraction))
+    valid_end = min(len(timestamps) - 1, max(train_end + 1, int(len(timestamps) * (train_fraction + validation_fraction))))
+    train_cutoff = timestamps.iloc[train_end]
+    test_cutoff = timestamps.iloc[valid_end]
+    return (
+        ordered[ordered.timestamp < train_cutoff].copy(),
+        ordered[(ordered.timestamp >= train_cutoff) & (ordered.timestamp < test_cutoff)].copy(),
+        ordered[ordered.timestamp >= test_cutoff].copy(),
+    )

@@ -37,15 +37,27 @@ class ArrivalForecaster:
         self.horizons = horizons or DEFAULT_HORIZONS
         self.models: dict[int, HistGradientBoostingRegressor] = {}
         self.metrics: dict[int, dict] = {}
+        self.test_predictions: dict[int, pd.DataFrame] = {}
+        self.training_summary: dict = {}
 
     def train(self, observations: pd.DataFrame) -> dict[int, dict]:
         featured = build_features(observations, self.horizons)
         train, validation, test = chronological_split(featured)
         training = pd.concat([train, validation])
         self.metrics = {}
+        self.test_predictions = {}
+        self.models = {}
+        self.training_summary = {
+            "train": {"rows": len(train), "start": train.timestamp.min(), "end": train.timestamp.max()},
+            "validation": {"rows": len(validation), "start": validation.timestamp.min(), "end": validation.timestamp.max()},
+            "test": {"rows": len(test), "start": test.timestamp.min(), "end": test.timestamp.max()},
+            "fit_policy": "Train and validation partitions combined for final fit; test remains held out.",
+            "horizons": {},
+        }
         for horizon in self.horizons:
             target = f"target_arrivals_{horizon}m"
-            training_rows = training.dropna(subset=FEATURE_COLUMNS + [target])
+            target_time = f"target_timestamp_{horizon}m"
+            training_rows = training[training[target_time] <= training.timestamp.max()].dropna(subset=FEATURE_COLUMNS + [target])
             test_rows = test.dropna(subset=FEATURE_COLUMNS + [target])
             if len(training_rows) < 20 or len(test_rows) < 2:
                 raise ValueError("Insufficient chronological history to train and evaluate forecasts.")
@@ -56,6 +68,15 @@ class ArrivalForecaster:
             prediction = np.clip(model.predict(test_rows[FEATURE_COLUMNS]), 0, None)
             self.models[horizon] = model
             self.metrics[horizon] = {"baseline": _metrics(test_rows[target], baseline), "ml": _metrics(test_rows[target], prediction), "test_samples": len(test_rows)}
+            self.test_predictions[horizon] = test_rows[["timestamp", "location_id", *FEATURE_COLUMNS]].assign(
+                actual=test_rows[target].to_numpy(), baseline=baseline, predicted=prediction,
+            ).reset_index(drop=True)
+            self.training_summary["horizons"][horizon] = {
+                "fit_rows": len(training_rows),
+                "last_feature_timestamp": training_rows.timestamp.max(),
+                "last_target_timestamp": training_rows[target_time].max(),
+                "first_test_timestamp": test_rows.timestamp.min(),
+            }
         return self.metrics
 
     def forecast(self, location_id: str, observation_history: pd.DataFrame, horizons: list[int] | None = None) -> dict[int, dict]:

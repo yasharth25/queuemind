@@ -28,3 +28,15 @@ def test_insufficient_history_is_rejected():
     data = generate_synthetic_queue_data(LOCATIONS, "2026-01-01", days=1).head(1)
     with pytest.raises(ValueError, match="At least two"):
         ArrivalForecaster().forecast("bank", data)
+
+
+def test_future_training_targets_cannot_cross_into_held_out_test():
+    data = generate_synthetic_queue_data(LOCATIONS, "2026-01-01", days=8, seed=9)
+    forecaster = ArrivalForecaster()
+    forecaster.train(data)
+    for horizon, summary in forecaster.training_summary["horizons"].items():
+        assert summary["last_target_timestamp"] < summary["first_test_timestamp"]
+        held_out = forecaster.test_predictions[horizon]
+        assert len(held_out) == forecaster.metrics[horizon]["test_samples"]
+        assert held_out.timestamp.min() == summary["first_test_timestamp"]
+        assert {"actual", "predicted", "baseline"}.issubset(held_out)
