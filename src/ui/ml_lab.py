@@ -150,4 +150,7 @@ def render_ml_lab(locations):
     elif section in handlers:
         handlers[section](locations, data)
     else:
-        st.info(f"{section} diagnostics have not been run. No result is fabricated.")
+        from src.ui.ml_diagnostics import render_errors, render_importance, render_uncertainty, render_integrity
+        diagnostic_handlers = {"Errors": render_errors, "Importance": render_importance,
+                               "Uncertainty": render_uncertainty, "Integrity": render_integrity}
+        diagnostic_handlers[section](locations, data, _bundle(locations))
