@@ -8,6 +8,7 @@ from src.vision.roi import classify_queue_people
 class VisionQueuePipeline:
     def __init__(self, detector, tracker, normalized_roi, location, entry_line, service_line, repository=None, forecaster=None):
         self.detector,self.tracker,self.roi,self.location=detector,tracker,normalized_roi,location
+        self.entry_line,self.service_line=entry_line,service_line
         self.events=EventDetector(location["id"],entry_line,service_line)
         self.repository,self.forecaster=repository,forecaster
         self.frame_number=0
@@ -18,6 +19,8 @@ class VisionQueuePipeline:
         tracks=self.tracker.update(detections)
         height,width=frame.shape[:2]
         roi=classify_queue_people(tracks,self.roi,width,height)
+        self.events.entry_line=tuple((x*width,y*height) for x,y in self.entry_line)
+        self.events.service_line=tuple((x*width,y*height) for x,y in self.service_line)
         events=self.events.update(tracks,timestamp)
         if self.repository: self.events.persist(events,self.repository)
         return {"processed":True,"detections":detections,"tracks":tracks,"queue":roi,"events":events}

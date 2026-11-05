@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import argparse
 from getpass import getpass
+from time import sleep
+from uuid import uuid4
 
 from src.vision.live.camera_sources import (
     CameraSettings, SourceType, probe_camera, resolve_onvif_stream,
@@ -29,6 +31,10 @@ def build_parser():
     parser.add_argument("--discover", action="store_true")
     parser.add_argument("--interface", default="", help="Local IPv4 address for ONVIF discovery")
     parser.add_argument("--test-only", action="store_true")
+    parser.add_argument("--preview", action="store_true", help="Show local annotated preview window")
+    parser.add_argument("--frame-skip", type=int, default=2)
+    parser.add_argument("--inference-interval", type=float, default=.5)
+    parser.add_argument("--active-counters", type=int, default=None)
     return parser
 
 
@@ -73,8 +79,60 @@ def main(argv=None):
     print(f"Validated {settings.name}: {probe.width}×{probe.height}, "
           f"{probe.frames_read} decoded frames, FPS {probe.fps or 'unavailable'}. "
           f"Source: {settings.source_type.value}.")
-    if not args.test_only:
-        print("Connection test complete. Continuous monitoring is configured separately.")
+    if args.test_only:
+        return 0
+    from src.config import get_location_by_id
+    from src.vision.annotation import annotate_frame
+    from src.vision.config import load_vision_config
+    from src.vision.live.camera_sources import CameraConnection, CameraStatus
+    from src.vision.live.monitor import QueueMonitor, build_pipeline
+    from src.vision.video_io import encode_preview, require_opencv
+
+    config = load_vision_config()
+    location = get_location_by_id(settings.location_id)
+    pipeline = build_pipeline(location, roi=config["default_roi"],
+                              entry_line=config["entry_line"],
+                              service_line=config["service_line"],
+                              confidence=float(config["confidence"]),
+                              model_path=config["model_path"], stride=args.frame_skip)
+    engine = QueueMonitor(str(uuid4()), CameraConnection(settings), pipeline, location,
+                          active_counters=args.active_counters or location["default_counters"],
+                          service_time_minutes=location["average_service_time_minutes"],
+                          rate_window_s=int(config["rate_window_seconds"]),
+                          min_inference_interval_s=args.inference_interval,
+                          preview_encoder=encode_preview if args.preview else None,
+                          annotator=annotate_frame if args.preview else None,
+                          replay_fps=probe.fps if settings.source_type == SourceType.REPLAY_VIDEO else None)
+    cv2 = require_opencv() if args.preview else None
+    print(f"Monitoring {settings.name} · {settings.source_type.value}. "
+          "ENTRY and SERVICE are boundary crossings, not verified transactions. Ctrl+C to stop.")
+    engine.start()
+    last_id = None
+    try:
+        while engine.status not in (CameraStatus.ERROR, CameraStatus.OFFLINE):
+            sleep(.25)
+            current = engine.latest()
+            if current and current.observation_id != last_id:
+                last_id = current.observation_id
+                print(f"{current.captured_at.isoformat()} | queue {current.people_waiting} | "
+                      f"detected {current.people_detected} | entries {current.entries_in_window} | "
+                      f"service boundary {current.service_boundary_crossings} | "
+                      f"arrival rate {current.observed_arrival_rate if current.observed_arrival_rate is not None else 'insufficient history'}")
+            if cv2 is not None and engine.preview is not None:
+                import numpy as np
+                image = cv2.imdecode(np.frombuffer(engine.preview, dtype=np.uint8), cv2.IMREAD_COLOR)
+                if image is not None:
+                    cv2.imshow("QueueMind · Local Camera Preview", image)
+                    if cv2.waitKey(1) & 0xFF == 27:
+                        break
+    except KeyboardInterrupt:
+        pass
+    finally:
+        engine.stop()
+        if cv2 is not None:
+            cv2.destroyAllWindows()
+    if engine.last_error:
+        print(engine.last_error)
     return 0
 
 

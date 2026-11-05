@@ -208,8 +208,8 @@ def analyze_video(
         pipeline = VisionQueuePipeline(
             detector, AnonymousTracker(iou_threshold=iou_threshold),
             validate_polygon(roi), location,
-            _pixel_line(validate_line(entry_line), metadata),
-            _pixel_line(validate_line(service_line), metadata),
+            validate_line(entry_line),
+            validate_line(service_line),
         )
         def frame_stream():
             index = 0
@@ -228,7 +228,3 @@ def analyze_video(
         capture.release()
         if writer is not None:
             writer.release()
-
-
-def _pixel_line(line, metadata):
-    return tuple((x * metadata.width, y * metadata.height) for x, y in line)
