@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import os
 
 import pandas as pd
@@ -29,7 +29,7 @@ def _clear_view():
     for key in ("qm_live_view_token", "qm_connected_cameras", "qm_selected_camera",
                 "qm_camera_observation", "qm_camera_status", "qm_studio_baseline",
                 "qm_studio_result", "qm_pairing_code", "qm_admin_message",
-                "qm_pair_admin_token", "qm_live_admin_token"):
+                "qm_pairing_expires_at", "qm_pair_admin_token", "qm_live_admin_token"):
         st.session_state.pop(key, None)
 
 
@@ -43,8 +43,11 @@ def _admin_action(endpoint, action):
         client = LiveAPIClient(endpoint, token)
         camera_id = st.session_state.get("qm_selected_camera")
         if action == "pair":
-            code = client._request("POST", "/api/v1/pairing-codes")["pairing_code"]
+            response = client._request("POST", "/api/v1/pairing-codes")
+            code = response["pairing_code"]
             st.session_state.qm_pairing_code = code
+            st.session_state.qm_pairing_expires_at = datetime.now(timezone.utc) + timedelta(
+                seconds=int(response.get("expires_in_seconds", 300)))
             st.session_state.qm_admin_message = "Pairing code created. It expires in five minutes and works once."
         elif action == "revoke" and camera_id:
             client.disconnect(camera_id)
@@ -108,8 +111,12 @@ def _setup_panel(endpoint):
             st.text_input("Workspace admin token", type="password", key="qm_pair_admin_token",
                           help="Used only for pairing/revocation. Never use a camera password here.")
             st.button("Create Pairing Code", on_click=_admin_action, args=(endpoint, "pair"))
-            if st.session_state.get("qm_pairing_code"):
+            expires = st.session_state.get("qm_pairing_expires_at")
+            if expires and expires > datetime.now(timezone.utc) and st.session_state.get("qm_pairing_code"):
                 st.code(st.session_state.qm_pairing_code)
+            elif expires:
+                st.session_state.pop("qm_pairing_code", None)
+                st.caption("Pairing code expired. Create a new one.")
             if st.session_state.get("qm_admin_message"):
                 st.caption(st.session_state.qm_admin_message)
 
@@ -262,7 +269,11 @@ def _workspace_panel(endpoint, locations):
 def render_live_camera(locations):
     st.title("Live Camera")
     st.caption("See your queue. Predict the wait. Take action. Observations and assumptions stay separately labelled.")
-    endpoint = _service_endpoint()
+    try:
+        endpoint = _service_endpoint()
+    except ValueError:
+        endpoint = None
+        st.warning("Live service URL is misconfigured. Camera monitoring is unavailable; demo and video tools remain usable.")
     _setup_panel(endpoint)
     if endpoint:
         _workspace_panel(endpoint, locations)

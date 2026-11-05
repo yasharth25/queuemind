@@ -23,6 +23,14 @@ def test_public_demo_without_live_endpoint_stays_disconnected(monkeypatch):
     assert app.session_state.get("qm_camera_observation") is None
 
 
+def test_bad_live_service_url_does_not_break_demo(monkeypatch):
+    monkeypatch.setattr("src.ui.live_camera._service_endpoint",
+                        lambda: (_ for _ in ()).throw(ValueError("bad URL")))
+    app = AppTest.from_file(APP).run(timeout=30)
+    assert not app.exception
+    assert any("misconfigured" in item.value for item in app.warning)
+
+
 def test_authenticated_camera_aggregate_reaches_live_dashboard_and_studio(monkeypatch):
     now = datetime.now(timezone.utc)
     observation = LiveObservation("obs-1", "cam-1", "bank", now, now,
