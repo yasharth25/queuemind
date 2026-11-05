@@ -1,6 +1,7 @@
 .venv/
 __pycache__/
 .pytest_cache/
+.work_tmp/
 *.pyc
 models/forecasting/*.joblib
 models/forecasting/*metadata.json

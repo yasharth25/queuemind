@@ -1,4 +1,4 @@
-"""QueueMind synthetic academic-demo entrypoint."""
+"""QueueMind academic demo and optional authorized video analysis entrypoint."""
 
 import streamlit as st
 
@@ -7,6 +7,6 @@ from src.ui.command_theme import apply_command_theme
 from src.ui.product_shell import render_product
 
 
-st.set_page_config(page_title="QueueMind · Command Center", page_icon="⏱", layout="wide")
+st.set_page_config(page_title="QueueMind · Know Your Queue", page_icon="⏱", layout="wide")
 apply_command_theme()
 render_product(get_enabled_locations())

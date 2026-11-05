@@ -97,15 +97,15 @@ def _evaluation(locations):
 
 def _forecast_chart(state, view, history):
     metric = st.radio(
-        "Forecast metric", ("QUEUE", "WAIT TIME", "ARRIVAL RATE", "SERVICE RATE"),
-        horizontal=True, label_visibility="collapsed", key="qm_chart_metric",
+        "Show", ("People Waiting", "Waiting Time"),
+        horizontal=True, key="qm_chart_metric",
     )
     config = view["config"]
     prior = history.tail(12).copy()
     live_history = state.get("queue_history", [])
-    use_live_queue = metric == "QUEUE" and len(live_history) > 1
+    use_live_queue = metric == "People Waiting" and len(live_history) > 1
     x_past = list(range(-55, 5, 5))
-    if metric == "QUEUE":
+    if metric == "People Waiting":
         shift = view["queue"] - float(prior["queue_count"].iloc[-1])
         y_past = (prior["queue_count"] + shift).clip(lower=0).tolist()
         y_future = [point["queue"] for point in view["timeline"]]
@@ -116,7 +116,7 @@ def _forecast_chart(state, view, history):
             y_past = [point["queue"] for point in recent]
         threshold = config["warning"]
         y_label = "People waiting"
-    elif metric == "WAIT TIME":
+    elif metric == "Waiting Time":
         shift = view["queue"] - float(prior["queue_count"].iloc[-1])
         adjusted = (prior["queue_count"] + shift).clip(lower=0)
         y_past = (adjusted / view["service_rate"]).tolist()
@@ -129,10 +129,7 @@ def _forecast_chart(state, view, history):
         threshold = view["service_rate"]
         y_label = "People / min"
     else:
-        y_past = prior["service_rate"].tolist()
-        y_future = [view["service_rate"]] * 5
-        threshold = view["arrival_rate"]
-        y_label = "People / min"
+        raise ValueError("Select People Waiting or Waiting Time.")
     # The prehistory is deterministic, synthetic, and shifted to connect to
     # the scenario snapshot; it is context, not measured campus observations.
     y_past[-1] = y_future[0]

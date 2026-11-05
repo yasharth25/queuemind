@@ -19,7 +19,7 @@ def test_vision_lab_all_sections_render_without_video_or_model(monkeypatch):
     app = AppTest.from_string(APP).run(timeout=30)
     assert not app.exception
     assert [tab.label for tab in app.tabs] == list(SECTIONS)
-    assert any("LOCAL VISION MODE" in item.value for item in app.info)
+    assert any("VIDEO INFERENCE UNAVAILABLE" in item.value for item in app.info)
     for section in SECTIONS:
         app.query_params["vision_sections"] = section
         app.run(timeout=30)
@@ -50,14 +50,13 @@ def test_selected_vision_state_is_available_in_existing_operations_tabs():
     app = AppTest.from_file(Path(__file__).resolve().parents[1] / "app.py")
     app.session_state["qm_state_source"] = "VISION"
     app.session_state["qm_vision_state"] = VisionQueueState("bank", 12, 1.2, 4, 1.5, .6, 2)
-    for section in ("Overview", "Forecast", "Optimizer"):
+    for section in ("Home", "Predictions", "Best Counters"):
         app.query_params["main_tabs"] = section
         app.run(timeout=30)
         assert not app.exception, section
-        assert any("SOURCE: LOCAL VIDEO ANALYSIS" in item.value for item in app.markdown)
+        assert any("From Uploaded Video" in item.value for item in app.markdown)
         assert [tab.label for tab in app.tabs] == [
-            "Overview", "Live Simulation", "Forecast", "Optimizer",
-            "ML Lab", "Vision Lab", "Evaluation",
+            "Home", "Upload Video", "Live Demo", "Predictions", "Best Counters", "Results",
         ]
 
 
