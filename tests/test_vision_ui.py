@@ -50,14 +50,12 @@ def test_selected_vision_state_is_available_in_existing_operations_tabs():
     app = AppTest.from_file(Path(__file__).resolve().parents[1] / "app.py")
     app.session_state["qm_state_source"] = "VISION"
     app.session_state["qm_vision_state"] = VisionQueueState("bank", 12, 1.2, 4, 1.5, .6, 2)
-    for section in ("Home", "Predictions", "Best Counters"):
+    for section in ("Live Camera", "Simulation Studio"):
         app.query_params["main_tabs"] = section
         app.run(timeout=30)
         assert not app.exception, section
         assert any("From Uploaded Video" in item.value for item in app.markdown)
-        assert [tab.label for tab in app.tabs] == [
-            "Home", "Upload Video", "Live Demo", "Predictions", "Best Counters", "Results",
-        ]
+        assert [tab.label for tab in app.tabs] == ["Live Camera", "Simulation Studio"]
 
 
 def test_session_held_upload_remains_available_after_widget_tab_unmount():

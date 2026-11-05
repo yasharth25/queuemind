@@ -1,12 +1,11 @@
-"""Six clear, lazily rendered pages within the existing Streamlit application."""
+"""Two-page QueueMind product shell with existing tools in Advanced Details."""
 
 import streamlit as st
 
 from src.demo.live import initial_state, set_counters
 from src.ui.command_center import _rotate_counter_widget, _sync_controls
-from src.ui.operations_tabs import render_forecast_tab, render_live_tab, render_optimizer_tab
 
-TAB_NAMES = ("Home", "Upload Video", "Live Demo", "Predictions", "Best Counters", "Results")
+TAB_NAMES = ("Live Camera", "Simulation Studio")
 
 
 def _ensure_state():
@@ -25,21 +24,53 @@ def _ensure_state():
 
 
 def _header():
+    status = st.session_state.get("qm_camera_status", "DISCONNECTED")
     video = st.session_state.get("qm_state_source") == "VISION" and st.session_state.get("qm_vision_state") is not None
-    source = "From Uploaded Video" if video else "Using Demo Data · SYNTHETIC"
-    detail = "Anonymous people counts" if video else "Simulation, not a real CCTV feed"
+    source = "From Uploaded Video" if video else "SYNTHETIC demo available"
     st.markdown(
         '<header class="qm-product-header"><div class="qm-product-brand">'
         '<span class="qm-clock">◷</span><div><b>QueueMind</b>'
-        '<small>Know your queue. Plan ahead.</small></div></div>'
-        f'<div class="qm-product-status"><span class="qm-tag">{source}</span>'
-        f'<span class="qm-muted">{detail}</span></div></header>',
+        '<small>See your queue. Predict the wait. Take action.</small></div></div>'
+        f'<div class="qm-product-status"><span class="qm-tag">{status}</span>'
+        f'<span class="qm-muted">{source}</span></div></header>',
         unsafe_allow_html=True,
     )
 
 
+def _advanced(locations):
+    with st.expander("Advanced Details · existing tools and evaluation"):
+        choice = st.selectbox("Open tool", (
+            "None", "Uploaded Video", "Live Demo", "Predictions", "Best Counters",
+            "Results", "Evaluation", "Vision Lab", "ML Lab",
+        ), key="qm_advanced_tool")
+        if choice == "Uploaded Video":
+            from src.ui.vision_lab import render_video_upload
+            render_video_upload(locations)
+        elif choice == "Live Demo":
+            from src.ui.operations_tabs import render_live_tab
+            render_live_tab(locations)
+        elif choice == "Predictions":
+            from src.ui.operations_tabs import render_forecast_tab
+            render_forecast_tab(locations)
+        elif choice == "Best Counters":
+            from src.ui.operations_tabs import render_optimizer_tab
+            render_optimizer_tab(locations)
+        elif choice == "Results":
+            from src.ui.simple_results import render_results
+            render_results(locations)
+        elif choice == "Evaluation":
+            from src.ui.operations_tabs import render_evaluation_tab
+            render_evaluation_tab(locations)
+        elif choice == "Vision Lab":
+            from src.ui.vision_lab import render_vision_lab
+            render_vision_lab()
+        elif choice == "ML Lab":
+            from src.ui.ml_lab import render_ml_lab
+            render_ml_lab(locations)
+
+
 def render_product(locations):
-    """Only the selected tab runs; upload and simulation state survive tab changes."""
+    """Render only the selected primary page; keep camera and demo state in session."""
     _ensure_state()
     _header()
     tabs = st.tabs(TAB_NAMES, key="main_tabs", bind="query-params")
@@ -47,18 +78,10 @@ def render_product(locations):
         if not tab.open:
             continue
         with tab:
-            if name == "Home":
-                from src.ui.simple_home import render_home
-                render_home(locations)
-            elif name == "Upload Video":
-                from src.ui.vision_lab import render_video_upload
-                render_video_upload(locations)
-            elif name == "Live Demo":
-                render_live_tab(locations)
-            elif name == "Predictions":
-                render_forecast_tab(locations)
-            elif name == "Best Counters":
-                render_optimizer_tab(locations)
+            if name == "Live Camera":
+                from src.ui.live_camera import render_live_camera
+                render_live_camera(locations)
             else:
-                from src.ui.simple_results import render_results
-                render_results(locations)
+                from src.ui.simulation_studio import render_simulation_studio
+                render_simulation_studio(locations)
+            _advanced(locations)

@@ -23,17 +23,15 @@ def _result():
                                 frames, [], previews={10: b"jpeg"})
 
 
-def test_six_simple_tabs_render_without_camera_or_yolo(monkeypatch):
+def test_two_main_pages_render_without_camera_or_yolo(monkeypatch):
     monkeypatch.setattr("src.ui.vision_lab._local_available", lambda: False)
     monkeypatch.setattr("src.ui.vision_lab._remote_available", lambda: False)
     app = AppTest.from_file(Path(__file__).resolve().parents[1] / "app.py")
-    for tab in ("Home", "Upload Video", "Live Demo", "Predictions", "Best Counters", "Results"):
+    for tab in ("Live Camera", "Simulation Studio"):
         app.query_params["main_tabs"] = tab
         app.run(timeout=30)
         assert not app.exception, tab
-        assert [item.label for item in app.tabs] == [
-            "Home", "Upload Video", "Live Demo", "Predictions", "Best Counters", "Results",
-        ]
+        assert [item.label for item in app.tabs] == ["Live Camera", "Simulation Studio"]
 
 
 def test_video_count_and_synthetic_demand_remain_separately_labelled():
