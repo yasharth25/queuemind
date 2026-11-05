@@ -16,3 +16,4 @@ runs/
 *.pt
 data/queuemind.db
 data/synthetic/*.csv
+config/calibrations/*.json

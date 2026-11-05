@@ -56,6 +56,8 @@ def baseline_from_live(observation: LiveObservation, location: dict,
         raise ValueError("Counters and synthetic rate must be valid.")
     source = ("REPLAY VIDEO" if observation.source_type == SourceType.REPLAY_VIDEO
               else "OBSERVED CAMERA")
+    if observation.is_stale():
+        source += " · STALE SNAPSHOT"
     rate = observation.observed_arrival_rate
     if synthetic_arrival_rate is not None:
         rate = synthetic_arrival_rate

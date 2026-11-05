@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from math import isfinite
 from queue import Empty, Full, Queue
 from threading import Event, Lock, Thread
 from time import monotonic
@@ -42,16 +43,20 @@ class LiveObservation:
             raise ValueError("Observation timestamps must include a timezone.")
         if self.processed_at < self.captured_at:
             raise ValueError("Processing cannot precede capture.")
-        if any(value < 0 for value in (self.people_detected, self.people_waiting,
-                                      self.entries_in_window, self.service_boundary_crossings,
-                                      self.configured_service_capacity, self.processing_latency_s)):
+        counts = (self.people_detected, self.people_waiting,
+                  self.entries_in_window, self.service_boundary_crossings)
+        if any(not isinstance(value, int) or isinstance(value, bool) for value in counts):
+            raise ValueError("Observation counts must be integers.")
+        if any(value < 0 for value in (*counts, self.configured_service_capacity,
+                                      self.processing_latency_s)):
             raise ValueError("Observation counts, rates, and latency cannot be negative.")
         if self.people_waiting > self.people_detected:
             raise ValueError("Queue count cannot exceed detected people.")
         for value in (self.observed_arrival_rate, self.service_boundary_rate,
-                      self.observed_completion_rate, self.analysis_fps):
-            if value is not None and value < 0:
-                raise ValueError("Observed rates and analysis FPS cannot be negative.")
+                      self.observed_completion_rate, self.analysis_fps,
+                      self.configured_service_capacity, self.processing_latency_s):
+            if value is not None and (not isfinite(value) or value < 0):
+                raise ValueError("Observed rates, capacity, and latency must be finite and nonnegative.")
 
     def is_stale(self, *, now: datetime | None = None, threshold_s: float = 15) -> bool:
         if threshold_s <= 0:

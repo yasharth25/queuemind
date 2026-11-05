@@ -33,6 +33,13 @@ html, body, [data-testid="stAppViewContainer"] {
 .qm-home-hero{display:flex;align-items:center;justify-content:space-between;gap:22px;
   padding:18px 22px;margin:6px 0 8px;background:linear-gradient(115deg,#EAF4F5 0%,#F6F8F6 64%,#FFF1EB 100%);
   border:1px solid #D8E8E7;border-radius:18px;}
+.qm-camera-preview{min-height:245px;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:10px;margin:10px 0 14px;padding:28px;text-align:center;
+  border:1px dashed #8DAFC1;border-radius:17px;background:linear-gradient(135deg,#102C49,#254F68);}
+.qm-camera-preview strong{color:#fff;font-size:21px;letter-spacing:-.03em;}
+.qm-camera-preview span{color:#CEE4EC;font-size:12px;max-width:520px;line-height:1.5;}
+.qm-sim-dots{display:flex;flex-wrap:wrap;gap:6px;padding:11px 0;min-height:42px;}
+.qm-sim-dots i{display:block;width:11px;height:11px;border-radius:50%;background:#173B63;}
 .qm-home-hero h1{font-size:clamp(25px,3vw,39px);line-height:1.08;letter-spacing:-.045em;
   margin:5px 0 8px;color:var(--qm-navy);}
 .qm-home-hero p{font-size:14px;line-height:1.45;color:#4B6074;max-width:650px;margin:0;}

@@ -21,6 +21,15 @@ from src.vision.pipeline import VisionQueuePipeline
 from src.vision.video_io import VideoMetadata
 from src.vision.analyzer import VisionAnalysisResult
 from src.ui.vision_lab import render_vision_lab
+from src.vision.live.camera_sources import CameraConnection
+from src.vision.live.calibration import CameraCalibration
+from src.vision.live.monitor import QueueMonitor
+from src.vision.live.forecast import project_live_queue
+from src.vision.live.simulation import run_what_if
+from src.vision.live.service import LiveDataStore
+from src.vision.live.client import LiveAPIClient
+from src.ui.live_camera import render_live_camera
+from src.ui.simulation_studio import render_simulation_studio
 try:
     PersonDetector()._load_model()
 except RuntimeError as error:

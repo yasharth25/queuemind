@@ -45,6 +45,10 @@ class CameraSettings:
     model: str = ""
 
     def __post_init__(self):
+        try:
+            object.__setattr__(self, "source_type", SourceType(self.source_type))
+        except ValueError as exc:
+            raise ValueError("Choose webcam, RTSP, ONVIF, or replay video.") from exc
         if not self.name.strip() or not self.location_id.strip():
             raise ValueError("Camera name and location are required.")
         if self.source_type in (SourceType.RTSP, SourceType.ONVIF):
@@ -229,6 +233,13 @@ def resolve_onvif_stream(settings: CameraSettings, *, camera_factory=None) -> Ca
     parsed = urlsplit(uri)
     if parsed.scheme.lower() != "rtsp" or not parsed.hostname or not parsed.path:
         raise RuntimeError("Camera did not provide an RTSP-compatible ONVIF stream.")
+    if parsed.hostname != settings.host:
+        try:
+            target = ip_address(parsed.hostname)
+        except ValueError:
+            raise RuntimeError("ONVIF stream points to an unexpected network host.") from None
+        if not (target.is_private or target.is_loopback or target.is_link_local):
+            raise RuntimeError("ONVIF stream points outside the local network.")
     # The returned URI is used only by the local connector; credentials are supplied in memory.
     return CameraSettings(settings.name, SourceType.RTSP, settings.location_id,
                           parsed.hostname, parsed.port or 554, parsed.path.lstrip("/") +

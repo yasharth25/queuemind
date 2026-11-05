@@ -25,6 +25,8 @@ def _ensure_state():
 
 def _header():
     status = st.session_state.get("qm_camera_status", "DISCONNECTED")
+    if status == "DISCONNECTED" and st.session_state.get("qm_show_demo"):
+        status = "DEMO"
     video = st.session_state.get("qm_state_source") == "VISION" and st.session_state.get("qm_vision_state") is not None
     source = "From Uploaded Video" if video else "SYNTHETIC demo available"
     st.markdown(
@@ -37,12 +39,20 @@ def _header():
     )
 
 
-def _advanced(locations):
+def _advanced(locations, page):
     with st.expander("Advanced Details · existing tools and evaluation"):
         choice = st.selectbox("Open tool", (
             "None", "Uploaded Video", "Live Demo", "Predictions", "Best Counters",
             "Results", "Evaluation", "Vision Lab", "ML Lab",
         ), key="qm_advanced_tool")
+        if (page == "Live Camera" and st.session_state.get("qm_show_demo")
+                and choice in ("Live Demo", "Predictions", "Best Counters", "Results")):
+            st.info("Hide the SYNTHETIC demo above to open this advanced tool here.")
+            return
+        if (page == "Live Camera" and st.session_state.get("qm_show_video")
+                and choice in ("Uploaded Video", "Vision Lab")):
+            st.info("Hide the video analyzer above to open this advanced tool here.")
+            return
         if choice == "Uploaded Video":
             from src.ui.vision_lab import render_video_upload
             render_video_upload(locations)
@@ -84,4 +94,4 @@ def render_product(locations):
             else:
                 from src.ui.simulation_studio import render_simulation_studio
                 render_simulation_studio(locations)
-            _advanced(locations)
+            _advanced(locations, name)
