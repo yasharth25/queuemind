@@ -30,6 +30,8 @@ python -m scripts.camera_connector --source replay_video --replay PATH_TO_VIDEO 
 
 The connection test succeeds only after decodable frames are read. Camera credentials are prompted locally and kept in memory for the session; brand and model alone cannot authenticate or locate a stream. ONVIF discovery lists candidates and does not prove stream access. ONVIF media URI lookup uses optional `onvif-zeep` if installed; vendor-specific URLs are not guessed. Actual webcam, ONVIF, and RTSP compatibility require testing with authorized hardware. Use `--preview` to open the **local** annotated window. By default the cloud page receives aggregate counts only. With explicit `--share-preview` and a paired service, it can show the latest annotated JPEG to authenticated viewers; that frame leaves the local network and expires from service memory after 15 seconds.
 
+For ONVIF stream URI lookup on the local connector, install the optional `onvif-zeep` package locally with `python -m pip install onvif-zeep`. Discovery itself uses a single explicit local IPv4 interface and needs no extra package.
+
 Mark a camera-specific queue polygon and virtual entry/service lines on a preview frame:
 
 ```powershell

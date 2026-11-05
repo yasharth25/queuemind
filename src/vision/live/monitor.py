@@ -97,6 +97,7 @@ class QueueMonitor:
         self._last_analysis_clock: float | None = None
         self.preview: bytes | None = None
         self.preview_captured_at: datetime | None = None
+        self.preview_error: str | None = None
         self.status = CameraStatus.DISCONNECTED
         self.last_error: str | None = None
         self.dropped_frames = 0
@@ -139,13 +140,19 @@ class QueueMonitor:
         )
         preview = None
         if self.preview_encoder is not None and self.annotator is not None:
-            annotated = self.annotator(
-                frame, output["tracks"], output["queue"]["queue_track_ids"],
-                self.pipeline.roi, self.pipeline.entry_line,
-                self.pipeline.service_line, observation.people_waiting,
-                entry_count, service_count,
-            )
-            preview = self.preview_encoder(annotated)
+            try:
+                annotated = self.annotator(
+                    frame, output["tracks"], output["queue"]["queue_track_ids"],
+                    self.pipeline.roi, self.pipeline.entry_line,
+                    self.pipeline.service_line, observation.people_waiting,
+                    entry_count, service_count,
+                )
+                preview = self.preview_encoder(annotated)
+                self.preview_error = None
+            except Exception:
+                # Optional preview failure must not erase a valid aggregate count.
+                self.preview_error = "Preview annotation or encoding failed."
+                preview = None
         with self._lock:
             self.history.append(observation)
             self.preview = preview

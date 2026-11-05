@@ -36,7 +36,7 @@ class CameraSettings:
     location_id: str
     host: str = ""
     port: int = 554
-    stream_path: str = ""
+    stream_path: str = field(default="", repr=False)
     username: str = field(default="", repr=False)
     password: str = field(default="", repr=False)
     webcam_index: int = 0

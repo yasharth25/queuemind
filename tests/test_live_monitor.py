@@ -70,6 +70,20 @@ def test_latest_frame_buffer_drops_old_frames():
     assert engine.dropped_frames == 1
 
 
+def test_preview_failure_does_not_stop_aggregate_monitoring():
+    settings = CameraSettings("Test", SourceType.WEBCAM, "bank")
+    engine = QueueMonitor("cam", CameraConnection(settings), FakePipeline(),
+                          {"id": "bank"}, active_counters=2,
+                          service_time_minutes=3,
+                          annotator=lambda *args: (_ for _ in ()).throw(RuntimeError("encoder failed")),
+                          preview_encoder=lambda frame: b"jpeg")
+    observed = engine.process_frame(np.zeros((50, 50, 3), dtype=np.uint8))
+    assert observed.people_detected == 2
+    assert engine.latest() == observed
+    assert engine.preview is None
+    assert engine.preview_error == "Preview annotation or encoding failed."
+
+
 def test_observation_rejects_wrong_location_and_naive_time():
     settings = CameraSettings("Test", SourceType.WEBCAM, "library")
     with pytest.raises(ValueError, match="matching location"):
