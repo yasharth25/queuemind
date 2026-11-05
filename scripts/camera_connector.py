@@ -85,6 +85,7 @@ def main(argv=None):
     from src.vision.annotation import annotate_frame
     from src.vision.config import load_vision_config
     from src.vision.live.camera_sources import CameraConnection, CameraStatus
+    from src.vision.live.forecast import project_live_queue
     from src.vision.live.monitor import QueueMonitor, build_pipeline
     from src.vision.video_io import encode_preview, require_opencv
 
@@ -118,6 +119,16 @@ def main(argv=None):
                       f"detected {current.people_detected} | entries {current.entries_in_window} | "
                       f"service boundary {current.service_boundary_crossings} | "
                       f"arrival rate {current.observed_arrival_rate if current.observed_arrival_rate is not None else 'insufficient history'}")
+                projection = project_live_queue(
+                    current, location,
+                    active_counters=args.active_counters or location["default_counters"],
+                )
+                if projection["available"]:
+                    after20 = projection["points"][3]
+                    print(f"  +20 min estimated queue {after20['queue']:.1f}, "
+                          f"wait {after20['wait_minutes']:.1f} min, "
+                          f"suggested counters {projection['recommendation']['recommended_counters']} "
+                          f"({projection['method']})")
             if cv2 is not None and engine.preview is not None:
                 import numpy as np
                 image = cv2.imdecode(np.frombuffer(engine.preview, dtype=np.uint8), cv2.IMREAD_COLOR)
