@@ -1,21 +1,12 @@
-"""Stateful, lazily rendered product navigation for the QueueMind demo."""
-
-from html import escape
+"""Six clear, lazily rendered pages within the existing Streamlit application."""
 
 import streamlit as st
 
 from src.demo.live import initial_state, set_counters
 from src.ui.command_center import _rotate_counter_widget, _sync_controls
-from src.ui.command_model import snapshot
-from src.ui.operations_tabs import (
-    render_evaluation_tab, render_forecast_tab, render_live_tab,
-    render_optimizer_tab, render_overview_tab, render_vision_tab,
-)
+from src.ui.operations_tabs import render_forecast_tab, render_live_tab, render_optimizer_tab
 
-TAB_NAMES = (
-    "Overview", "Live Simulation", "Forecast", "Optimizer",
-    "ML Lab", "Vision Lab", "Evaluation",
-)
+TAB_NAMES = ("Home", "Upload Video", "Live Demo", "Predictions", "Best Counters", "Results")
 
 
 def _ensure_state():
@@ -33,85 +24,41 @@ def _ensure_state():
         _rotate_counter_widget()
 
 
-def _header(state, view, location):
-    vision_state = st.session_state.get("qm_vision_state")
-    if st.session_state.get("qm_state_source") == "VISION" and vision_state is not None:
-        from src.vision.integration import project_vision_state
-        from src.config import get_location_by_id
-
-        vision_location = get_location_by_id(vision_state.location_id)
-        projection = project_vision_state(vision_state, vision_location)
-        name = escape(vision_location["display_name"])
-        st.markdown(
-            '<header class="qm-product-header">'
-            '<div class="qm-product-brand"><span class="qm-clock">◷</span>'
-            '<div><b>QueueMind</b><small>See now. Predict next. Act early.</small></div></div>'
-            '<div class="qm-product-status"><span class="qm-tag">SOURCE: LOCAL VIDEO ANALYSIS</span>'
-            f'<span class="qm-badge info">VIDEO FRAME {vision_state.frame_index}</span>'
-            f'<span>{name}</span></div></header>'
-            '<div class="qm-context">'
-            f'<span><b>FACILITY PROFILE</b> {name}</span>'
-            f'<span><b>OBSERVED QUEUE</b> {vision_state.current_queue}</span>'
-            f'<span><b>COUNTERS</b> {vision_state.active_counters}</span>'
-            f'<span><b>RECOMMENDED</b> {projection["recommendation"]["recommended_counters"]}</span>'
-            '<span>DETERMINISTIC PROJECTION · VIDEO-RELATIVE TIME</span></div>',
-            unsafe_allow_html=True,
-        )
-        return
-    if state["simulation_running"]:
-        status = "LIVE"
-    elif state["complete"]:
-        status = "COMPLETE"
-    elif state["simulation_elapsed_minutes"]:
-        status = "PAUSED"
-    else:
-        status = "READY"
-    name = escape(location["display_name"])
-    scenario = escape(state["selected_scenario"])
+def _header():
+    video = st.session_state.get("qm_state_source") == "VISION" and st.session_state.get("qm_vision_state") is not None
+    source = "From Uploaded Video" if video else "Using Demo Data · SYNTHETIC"
+    detail = "Anonymous people counts" if video else "Simulation, not a real CCTV feed"
     st.markdown(
-        '<header class="qm-product-header">'
-        '<div class="qm-product-brand"><span class="qm-clock">◷</span>'
-        '<div><b>QueueMind</b><small>See now. Predict next. Act early.</small></div></div>'
-        f'<div class="qm-product-status"><span class="qm-tag">SYNTHETIC DEMO</span>'
-        f'<span class="qm-badge {"normal" if status == "LIVE" else "info"}">{status}</span>'
-        f'<span>{name}</span><span class="qm-muted">{scenario}</span></div></header>',
-        unsafe_allow_html=True,
-    )
-    st.markdown(
-        '<div class="qm-context">'
-        f'<span><b>SCENARIO</b> {scenario}</span>'
-        f'<span><b>FACILITY</b> {name}</span>'
-        f'<span><b>SIMULATION</b> {status} · +{state["simulation_elapsed_minutes"]}m</span>'
-        f'<span><b>COUNTERS</b> {state["active_counters"]}</span>'
-        f'<span><b>RECOMMENDED</b> {view["recommendation"]["recommended_counters"]}</span>'
-        '<span class="qm-context-synthetic">SYNTHETIC DATA</span></div>',
+        '<header class="qm-product-header"><div class="qm-product-brand">'
+        '<span class="qm-clock">◷</span><div><b>QueueMind</b>'
+        '<small>Know your queue. Plan ahead.</small></div></div>'
+        f'<div class="qm-product-status"><span class="qm-tag">{source}</span>'
+        f'<span class="qm-muted">{detail}</span></div></header>',
         unsafe_allow_html=True,
     )
 
 
 def render_product(locations):
-    """Render only the selected primary tab; simulation state lives above tabs."""
+    """Only the selected tab runs; upload and simulation state survive tab changes."""
     _ensure_state()
-    state = st.session_state.qm_live
-    location_by_id = {item["id"]: item for item in locations}
-    location = location_by_id[state["selected_location"]]
-    view = snapshot(state)
-    _header(state, view, location)
+    _header()
     tabs = st.tabs(TAB_NAMES, key="main_tabs", bind="query-params")
-    handlers = {
-        "Overview": lambda: render_overview_tab(locations),
-        "Live Simulation": lambda: render_live_tab(locations),
-        "Forecast": lambda: render_forecast_tab(locations),
-        "Optimizer": lambda: render_optimizer_tab(locations),
-        "Vision Lab": render_vision_tab,
-        "Evaluation": lambda: render_evaluation_tab(locations),
-    }
     for name, tab in zip(TAB_NAMES, tabs):
-        if tab.open:
-            with tab:
-                if name == "ML Lab":
-                    from src.ui.ml_lab import render_ml_lab
-
-                    render_ml_lab(locations)
-                else:
-                    handlers[name]()
+        if not tab.open:
+            continue
+        with tab:
+            if name == "Home":
+                from src.ui.simple_home import render_home
+                render_home(locations)
+            elif name == "Upload Video":
+                from src.ui.vision_lab import render_video_upload
+                render_video_upload(locations)
+            elif name == "Live Demo":
+                render_live_tab(locations)
+            elif name == "Predictions":
+                render_forecast_tab(locations)
+            elif name == "Best Counters":
+                render_optimizer_tab(locations)
+            else:
+                from src.ui.simple_results import render_results
+                render_results(locations)

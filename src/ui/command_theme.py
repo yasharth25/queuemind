@@ -9,9 +9,9 @@ def apply_command_theme():
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
 :root {
-  --qm-bg:#F7F4EF; --qm-white:#FFFFFF; --qm-navy:#173B63; --qm-ink:#102033;
-  --qm-coral:#F36F5D; --qm-blue:#3478F6; --qm-teal:#159A82; --qm-green:#2DA36B;
-  --qm-amber:#E5A128; --qm-red:#D84E4E; --qm-muted:#718096; --qm-border:#DFE5EA;
+  --qm-bg:#F8F7F4; --qm-white:#FFFFFF; --qm-navy:#173B63; --qm-ink:#16263B;
+  --qm-coral:#F97360; --qm-blue:#4C8BF5; --qm-teal:#21A99A; --qm-green:#30A46C;
+  --qm-amber:#E9A23B; --qm-red:#D84E4E; --qm-muted:#61748A; --qm-border:#DCE5EB;
 }
 html { scroll-behavior:smooth; }
 html, body, [data-testid="stAppViewContainer"] {
@@ -30,13 +30,28 @@ html, body, [data-testid="stAppViewContainer"] {
 .qm-product-brand b {display:block;font-weight:800;line-height:1.2;}
 .qm-product-brand small {display:block;font-size:9px;color:var(--qm-muted);font-weight:600;}
 .qm-product-status {display:flex;align-items:center;gap:12px;font-size:10px;font-weight:700;color:#52677D;}
+.qm-home-hero{display:flex;align-items:center;justify-content:space-between;gap:22px;
+  padding:18px 22px;margin:6px 0 8px;background:linear-gradient(115deg,#EAF4F5 0%,#F6F8F6 64%,#FFF1EB 100%);
+  border:1px solid #D8E8E7;border-radius:18px;}
+.qm-home-hero h1{font-size:clamp(25px,3vw,39px);line-height:1.08;letter-spacing:-.045em;
+  margin:5px 0 8px;color:var(--qm-navy);}
+.qm-home-hero p{font-size:14px;line-height:1.45;color:#4B6074;max-width:650px;margin:0;}
+.qm-home-steps{display:flex;flex-direction:column;gap:7px;min-width:180px;color:var(--qm-navy);font-size:12px;}
+.qm-home-steps b{background:rgba(255,255,255,.82);padding:7px 11px;border-radius:9px;border:1px solid #DCE8E8;}
+.qm-upload-intro{display:flex;align-items:baseline;gap:12px;background:#E7F7F3;
+  border:1px solid #B9E6DB;border-radius:12px;padding:10px 14px;margin:4px 0;}
+.qm-upload-intro b{font-size:16px;color:#117C70;white-space:nowrap;}
+.qm-upload-intro span{font-size:12px;color:#496D68;}
+[data-testid="stFileUploader"]{background:#F5FBF9;border:1.5px dashed #72CBB9;border-radius:13px;padding:8px 13px;}
+[data-testid="stFileUploader"] label{font-size:14px;font-weight:800;color:var(--qm-navy);}
 .qm-context {display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding:6px 13px;
   background:#EDF3F8;border:1px solid #DBE7F0;border-radius:9px;font-size:10px;color:var(--qm-navy);}
 .qm-context b {font-size:9px;letter-spacing:.055em;margin-right:4px;color:#75889B;}
 .qm-context-synthetic {margin-left:auto;font-weight:800;color:#B6493A;}
-[data-testid="stTabs"] [role="tablist"] {gap:8px;border-bottom:1px solid var(--qm-border);}
+[data-testid="stTabs"] [role="tablist"] {gap:8px;border-bottom:1px solid var(--qm-border);overflow-x:auto;scrollbar-width:thin;}
 [data-testid="stTabs"] [role="tab"] {border-radius:9px 9px 0 0;padding:8px 13px;
-  font-size:12px;font-weight:800;color:#597084;}
+  font-size:13px;font-weight:800;color:#50677D;white-space:nowrap;}
+[data-testid="stTabs"] [role="tab"]:focus-visible {outline:2px solid var(--qm-blue);outline-offset:2px;}
 [data-testid="stTabs"] [role="tab"][aria-selected="true"] {color:var(--qm-navy);background:#EDF3F8;}
 [data-testid="stTabs"] [role="tab"]:nth-child(2)[aria-selected="true"] {color:#A94034;background:#FFF0EB;}
 [data-testid="stTabs"] [role="tab"]:nth-child(3)[aria-selected="true"] {color:#2463B1;background:#EDF3FF;}
@@ -141,6 +156,12 @@ div[data-baseweb="select"]>div {background:white!important;border-color:var(--qm
   .qm-product-status>span:nth-child(n+3){display:none}
   .qm-product-brand{font-size:15px}
   .qm-product-brand small{font-size:8px}
+  .qm-home-hero{padding:14px;display:block}
+  .qm-home-steps{flex-direction:row;flex-wrap:wrap;min-width:0;margin-top:12px}
+  .qm-home-steps b{font-size:10px;padding:5px 7px}
+  .qm-upload-intro{display:block}
+  .qm-upload-intro b{display:block;margin-bottom:3px}
+  [data-testid="stTabs"] [role="tab"]{font-size:12px;padding:8px 10px}
   .qm-context{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px;padding:7px 9px}
   .qm-context-synthetic{margin:0}
   .qm-nav{gap:7px}.qm-links a{font-size:10px;padding:5px}

@@ -1,4 +1,4 @@
-"""Optional local video workspace inside QueueMind's existing Vision Lab tab."""
+"""Session-scoped video analysis and optional advanced vision diagnostics."""
 
 from __future__ import annotations
 
@@ -19,6 +19,7 @@ from src.evaluation.vision import TEMPLATE_CSV, evaluate_vision_labels
 from src.vision.analyzer import analyze_video
 from src.vision.config import load_vision_config, validate_line, validate_polygon
 from src.vision.integration import project_vision_state, state_from_frame
+from src.vision.remote import analyze_remote_upload, remote_config
 from src.vision.video_io import open_video, read_sample_frame, uploaded_video_file
 
 LOG = logging.getLogger(__name__)
@@ -26,6 +27,14 @@ SECTIONS = (
     "Video Analyzer", "ROI Setup", "Live Metrics", "Timeline",
     "Forecast Integration", "Evaluation", "Pipeline / Privacy",
 )
+MAX_UPLOAD_BYTES = 40 * 1024 * 1024
+MAX_DURATION_S = 60
+MAX_PIXELS = 1280 * 720
+QUEUE_AREAS = {
+    "Middle of frame": ((.20, .25), (.80, .25), (.80, .95), (.20, .95)),
+    "Left side": ((.02, .20), (.52, .20), (.52, .98), (.02, .98)),
+    "Right side": ((.48, .20), (.98, .20), (.98, .98), (.48, .98)),
+}
 
 
 def _defaults():
@@ -56,8 +65,19 @@ def _person_detector():
     )
 
 
-def _available() -> bool:
+def _local_available() -> bool:
     return all(importlib.util.find_spec(name) is not None for name in ("cv2", "ultralytics"))
+
+
+def _remote_available() -> bool:
+    try:
+        return remote_config(st.secrets) is not None
+    except ValueError:
+        return False
+
+
+def _available() -> bool:
+    return _local_available() or _remote_available()
 
 
 def _source_context():
@@ -85,9 +105,9 @@ def _runtime_status():
          "Local CLI only", "Available"),
     ):
         column.metric(label, value)
-    st.caption("Cloud video inference: DISABLED by optional dependencies. Runtime checks do not load CV libraries or weights.")
+    st.caption("Cloud inference needs a separately configured private worker. Runtime checks do not load CV libraries or weights.")
     if not _available():
-        st.info("LOCAL VISION MODE · CCTV/video inference uses optional local dependencies and is intentionally disabled on the public cloud demo. CSV evaluation remains available.")
+        st.info("VIDEO INFERENCE UNAVAILABLE · Install local vision dependencies or configure an authorized private worker. CSV evaluation remains available.")
         st.code("python -m pip install -r requirements-vision.txt\npython -m streamlit run app.py", language="powershell")
 
 
@@ -98,69 +118,95 @@ def _video_metadata():
     return metadata
 
 
-def _video_analyzer(locations):
-    st.markdown("#### Video Analyzer · local prerecorded queue video")
-    st.caption("PERSON DETECTION → ANONYMOUS TRACKING → QUEUE ROI → EVENTS → QUEUE STATE")
-    if not _available():
-        st.info("This section is local-only. Install the optional vision requirements; no webcam or YOLO weights are required for the cloud demo.")
-        return
-    upload_col, path_col = st.columns([1.2, 1])
-    with upload_col:
-        current_upload = st.file_uploader(
-            "UPLOAD CCTV / QUEUE VIDEO", type=["mp4", "avi", "mov", "mkv"],
-            key=f'qm_vision_video_upload_{st.session_state.get("qm_video_upload_version", 0)}',
-        )
-        if current_upload is not None:
-            st.session_state.qm_vision_upload_keep = current_upload
-        uploaded = current_upload or st.session_state.get("qm_vision_upload_keep")
-    with path_col:
+def _video_analyzer(locations, *, home=False):
+    st.markdown('<div class="qm-upload-intro"><b>Analyze Your Queue Video</b>'
+                '<span>Upload a short queue recording. We detect people only inside the queue area you choose.</span></div>',
+                unsafe_allow_html=True)
+    current_upload = st.file_uploader(
+        "Upload Queue Video · MP4, MOV, AVI, or MKV", type=["mp4", "avi", "mov", "mkv"],
+        key=f'qm_vision_video_upload_{st.session_state.get("qm_video_upload_version", 0)}',
+        help="Up to 40 MB and 60 seconds. QueueMind counts people, not identities.",
+    )
+    if current_upload is not None:
+        st.session_state.qm_vision_upload_keep = current_upload
+    uploaded = current_upload or st.session_state.get("qm_vision_upload_keep")
+    with st.expander("Advanced Video Settings · local file and calibration"):
         local_path = st.text_input(
-            "Local video path (optional)",
+            "Local video path (optional, on this computer)",
             value=st.session_state.get("qm_vision_local_path_keep", ""),
             key=f'qm_vision_local_path_{st.session_state.get("qm_video_upload_version", 0)}',
             help="Used only if no video is uploaded. The path is read on this server; remote URLs and RTSP are unsupported.",
         )
         st.session_state.qm_vision_local_path_keep = local_path.strip()
     if uploaded is not None:
-        st.caption(f"Uploaded: {uploaded.name} · {uploaded.size / 1024**2:.2f} MB · held only in this browser session for ROI calibration; no disk copy persists")
+        if uploaded.size > MAX_UPLOAD_BYTES:
+            st.error("This video is too large. Choose a file smaller than 40 MB.")
+            return
+        st.caption(f"{uploaded.name} · {uploaded.size / 1024**2:.1f} MB · held in this session only")
         if Path(uploaded.name).suffix.lower() in {".mp4", ".mov"}:
             st.video(uploaded)
         else:
-            st.info("Browser preview may be unavailable for AVI/MKV; OpenCV can still analyze supported codecs.")
+            st.caption("Your browser may not preview AVI/MKV. Analysis depends on the server decoder.")
     elif st.session_state.get("qm_vision_local_path_keep", "").strip():
         path = Path(st.session_state.qm_vision_local_path_keep)
         if path.is_file() and path.suffix.lower() in {".mp4", ".mov"}:
             st.video(str(path))
     else:
-        st.info("Upload MP4/AVI/MOV/MKV or enter a path on this local machine. A short prerecorded clip is best for calibration.")
+        st.info("Start by uploading a queue video. Upload → Analyze → See Results.")
+        if not _available():
+            st.caption("This cloud demo currently has no video inference backend. The Live Demo remains available; uploaded-video analysis requires the optional local vision setup.")
         return
-    try:
-        metadata = _video_metadata()
-    except (OSError, ValueError, RuntimeError) as exc:
-        st.error(f"Video preview unavailable: {exc}")
+    local_ready, remote_ready = _local_available(), _remote_available()
+    if not (local_ready or remote_ready):
+        st.warning("Video preview is available, but this deployment has no person-detection backend. Analysis is available with the optional local vision setup; this upload has not been analyzed.")
         return
-    fields = st.columns(5)
-    for column, label, value in zip(fields,
-        ("Resolution", "Video FPS", "Frames", "Duration", "File size"),
-        (f"{metadata.width} × {metadata.height}", f"{metadata.fps:.1f}",
-         f"{metadata.total_frames:,}" if metadata.total_frames else "Unknown",
-         f"{metadata.duration_s:.1f} s" if metadata.duration_s is not None else "Unknown",
-         f"{metadata.size_bytes / 1024**2:.2f} MB" if metadata.size_bytes else "Unknown"),
-    ):
-        column.metric(label, value)
-    try:
-        with _source_context() as path:
-            sample, _ = read_sample_frame(path, 0)
-        st.image(sample, channels="BGR", caption="Decoded first frame · fallback preview when browser video codecs are unavailable", width=480)
-    except (OSError, ValueError, RuntimeError) as exc:
-        st.warning(f"Still-frame preview unavailable: {exc}")
-    mode = st.radio("Processing mode", ("QUICK ANALYSIS", "FULL ANALYSIS"), horizontal=True,
+    metadata = None
+    if local_ready:
+        try:
+            metadata = _video_metadata()
+        except (OSError, ValueError, RuntimeError) as exc:
+            st.error(f"We could not read this video: {exc}")
+            return
+        if metadata.duration_s is not None and metadata.duration_s > MAX_DURATION_S:
+            st.error("This video is longer than 60 seconds. Please trim it before analysis.")
+            return
+        if metadata.width * metadata.height > MAX_PIXELS:
+            st.error("This video is above 1280 × 720. Please use a smaller copy for this demo.")
+            return
+        st.caption(f"{metadata.duration_s:.1f} seconds · {metadata.width} × {metadata.height} · {metadata.fps:.1f} frames/second")
+    else:
+        st.caption("The private video worker checks clip duration and resolution before processing. Limit: 30 seconds, 1280 × 720, 40 MB.")
+        if uploaded is None:
+            st.error("Remote analysis requires an uploaded video, not a server-local path.")
+            return
+    st.markdown("**Select Queue Area**")
+    st.caption("Choose the part of the picture where people wait. People elsewhere are not counted as waiting.")
+    area = st.selectbox("Queue area preset", ["Middle of frame", "Left side", "Right side", "Custom area"],
+                        key="qm_vision_area_choice")
+    if area != "Custom area":
+        st.session_state.qm_vision_roi = QUEUE_AREAS[area]
+    if local_ready:
+        try:
+            with _source_context() as path:
+                sample, _ = read_sample_frame(path, 0)
+            from src.vision.annotation import annotate_frame
+            from src.vision.video_io import encode_preview
+            outlined = annotate_frame(sample, [], [], st.session_state.qm_vision_roi,
+                                      st.session_state.qm_vision_entry, st.session_state.qm_vision_service, 0)
+            st.image(encode_preview(outlined), caption="Queue area preview · adjust before analyzing", width=480)
+        except (OSError, ValueError, RuntimeError) as exc:
+            st.warning(f"Queue-area preview unavailable: {exc}")
+    if area == "Custom area":
+        _roi_editor()
+    names = [item["display_name"] for item in locations]
+    selected_location = st.selectbox("Facility type", names, key="qm_vision_analysis_location")
+    st.session_state.qm_vision_location = names.index(selected_location)
+    mode = st.radio("Analysis speed", ("Quick Analysis", "Full Analysis"), horizontal=True,
                     help="Quick mode skips frames and may miss brief boundary crossings.")
-    stride = 1 if mode == "FULL ANALYSIS" else st.select_slider(
-        "Frame stride", options=[1, 2, 3, 5, 10], value=3,
-    )
-    st.caption("Higher stride is faster but can reduce anonymous-track continuity and entry/service event precision.")
+    stride = 1 if mode == "Full Analysis" else 5
     with st.expander("ADVANCED VISION SETTINGS"):
+        if mode == "Quick Analysis":
+            stride = st.select_slider("Frame skipping", options=[2, 3, 5, 10], value=5)
         st.slider("Person confidence", .10, .90, step=.05, key="qm_vision_confidence")
         st.text_input("YOLO model path/name", key="qm_vision_model_path",
                       help="Default yolo11n.pt may download once on the local machine if absent. No model is loaded in the cloud page.")
@@ -169,56 +215,88 @@ def _video_analyzer(locations):
         max_previews = st.slider("Maximum stored annotated previews", 10, 150, 80, 10)
         save_video = st.checkbox("GENERATE ANNOTATED VIDEO", value=False,
                                  help="Optional MP4 encoding costs time and memory; OFF by default.")
-    st.caption("Queue ROI and virtual lines can be calibrated in ROI Setup before analysis. No face/identity processing.")
+    st.caption("Advanced queue geometry and entry/service lines can be adjusted below. No face or identity processing.")
+    with st.expander("Advanced Queue Area and Crossing Lines"):
+        if local_ready:
+            _roi_setup()
+        else:
+            _roi_editor()
+            st.caption("Entry and service lines use configured defaults on the private worker.")
     start, reset = st.columns(2)
-    if reset.button("RESET ANALYSIS", width="stretch"):
+    if reset.button("Analyze Another Video", width="stretch"):
         for key in ("qm_vision_result", "qm_vision_state", "qm_vision_frame_selection",
                     "qm_vision_optimizer_ran", "qm_vision_upload_keep",
-                    "qm_vision_local_path_keep"):
+                    "qm_vision_local_path_keep", "qm_vision_demand_choice_keep",
+                    "qm_vision_demand_choice"):
             st.session_state.pop(key, None)
         st.session_state.qm_video_upload_version = st.session_state.get("qm_video_upload_version", 0) + 1
         if st.session_state.get("qm_state_source") == "VISION":
             st.session_state.qm_state_source = "SYNTHETIC"
         st.rerun()
-    if not start.button("START ANALYSIS", type="primary", width="stretch"):
-        st.info("Use TEST ROI in ROI Setup first, then start analysis. Streamlit's Stop control can interrupt a long run.")
+    if not start.button("Analyze Video", type="primary", width="stretch"):
+        if st.session_state.get("qm_vision_result") is not None:
+            _simple_video_result(locations)
         return
-    progress_bar = st.progress(0, text="Preparing local video analysis…")
+    progress_bar = st.progress(0, text="Reading your video…")
     status = st.empty()
     def progress(index, total, elapsed):
         fraction = min(1.0, index / total) if total else 0.0
-        progress_bar.progress(fraction, text=f"Frame {index:,} / {total:,}" if total else f"Frame {index:,}")
+        progress_bar.progress(fraction, text=f"Finding and counting people · frame {index:,} / {total:,}" if total else f"Finding and counting people · frame {index:,}")
         processed = max(1, (index + stride - 1) // stride)
         status.caption(f"Elapsed {elapsed:.1f}s · analysis {processed / max(elapsed, .001):.1f} FPS · video {metadata.fps:.1f} FPS")
     try:
-        output_context = TemporaryDirectory(prefix="queuemind_output_") if save_video else nullcontext(None)
-        with _source_context() as path, output_context as folder:
-            output = Path(folder) / "annotated.mp4" if save_video else None
-            result = analyze_video(
-                path, _person_detector(), locations[st.session_state.get("qm_vision_location", 0)],
-                st.session_state.qm_vision_roi, st.session_state.qm_vision_entry,
-                st.session_state.qm_vision_service, stride=stride,
-                rate_window_s=st.session_state.qm_vision_rate_window,
-                max_previews=max_previews, iou_threshold=iou,
-                annotated_output=output, progress=progress,
-            )
-            if output is not None:
-                size = output.stat().st_size
-                if size > 100 * 1024**2:
-                    st.warning("Annotated MP4 exceeded 100 MB and was not retained for download.")
-                elif size:
-                    result.annotated_video = output.read_bytes()
+        if local_ready:
+            output_context = TemporaryDirectory(prefix="queuemind_output_") if save_video else nullcontext(None)
+            with _source_context() as path, output_context as folder:
+                output = Path(folder) / "annotated.mp4" if save_video else None
+                result = analyze_video(
+                    path, _person_detector(), locations[st.session_state.get("qm_vision_location", 0)],
+                    st.session_state.qm_vision_roi, st.session_state.qm_vision_entry,
+                    st.session_state.qm_vision_service, stride=stride,
+                    rate_window_s=st.session_state.qm_vision_rate_window,
+                    max_previews=max_previews, iou_threshold=iou,
+                    annotated_output=output, progress=progress,
+                )
+                if output is not None:
+                    size = output.stat().st_size
+                    if size > 100 * 1024**2:
+                        st.warning("Annotated MP4 exceeded 100 MB and was not retained for download.")
+                    elif size:
+                        result.annotated_video = output.read_bytes()
+        else:
+            status.caption("Sending the clip to the authorized private worker; waiting for real analysis…")
+            result = analyze_remote_upload(uploaded, locations[st.session_state.qm_vision_location]["id"],
+                                           st.session_state.qm_vision_roi, st.session_state.qm_vision_entry,
+                                           st.session_state.qm_vision_service, stride, secrets=st.secrets)
         st.session_state.qm_vision_model_loaded = True
         st.session_state.qm_vision_result = result
         st.session_state.pop("qm_vision_state", None)
         st.session_state.pop("qm_vision_optimizer_ran", None)
+        st.session_state.pop("qm_vision_demand_choice_keep", None)
+        st.session_state.pop("qm_vision_demand_choice", None)
         if st.session_state.get("qm_state_source") == "VISION":
             st.session_state.qm_state_source = "SYNTHETIC"
-        progress_bar.progress(1.0, text="Analysis complete")
-        st.success(f"Analyzed {len(result.frames):,} frames · {len(result.previews)} bounded preview frames retained in this session.")
+        progress_bar.progress(1.0, text="Preparing results · analysis complete")
+        st.rerun()
     except Exception as exc:
         LOG.exception("Local vision analysis failed")
-        st.error(f"Local video analysis could not finish: {exc}")
+        st.error(f"This video could not be analyzed: {exc}")
+
+
+def _roi_editor(key="qm_vision_roi_editor"):
+    current = st.session_state.qm_vision_roi
+    edited = st.data_editor(
+        pd.DataFrame(current, columns=["x", "y"]), num_rows="dynamic", width="stretch",
+        column_config={"x": st.column_config.NumberColumn("Horizontal position", min_value=0.0, max_value=1.0, step=.01),
+                       "y": st.column_config.NumberColumn("Vertical position", min_value=0.0, max_value=1.0, step=.01)},
+        key=key,
+    )
+    if st.button("Apply Queue Area", key=f"{key}_apply"):
+        try:
+            st.session_state.qm_vision_roi = validate_polygon(edited[["x", "y"]].values.tolist())
+            st.success("Queue area updated for this session. Run analysis again to use it.")
+        except (ValueError, TypeError) as exc:
+            st.error(f"Invalid queue area: {exc}")
 
 
 def _roi_setup():
@@ -229,20 +307,7 @@ def _roi_setup():
 
     st.markdown("#### Queue ROI · normalized camera geometry")
     st.caption("Default polygon is a calibration placeholder. Only tracked bottom-centre points inside it count as queued.")
-    current = st.session_state.qm_vision_roi
-    st.code(str(list(current)))
-    edited = st.data_editor(
-        pd.DataFrame(current, columns=["x", "y"]), num_rows="dynamic", width="stretch",
-        column_config={"x": st.column_config.NumberColumn("Normalized x", min_value=0.0, max_value=1.0, step=.01),
-                       "y": st.column_config.NumberColumn("Normalized y", min_value=0.0, max_value=1.0, step=.01)},
-        key="qm_vision_roi_editor",
-    )
-    if st.button("APPLY QUEUE ROI"):
-        try:
-            st.session_state.qm_vision_roi = validate_polygon(edited[["x", "y"]].values.tolist())
-            st.success("Queue ROI updated for this session.")
-        except (ValueError, TypeError) as exc:
-            st.error(f"Invalid ROI: {exc}")
+    _roi_editor()
     for key, title in (("qm_vision_entry", "ENTRY LINE"), ("qm_vision_service", "SERVICE LINE")):
         with st.expander(title):
             line = st.session_state[key]
@@ -290,6 +355,43 @@ def _result():
     if result is None:
         st.info("No local video analysis in this session yet. Run Video Analyzer first.")
     return result
+
+
+def _simple_video_result(locations):
+    result = st.session_state.get("qm_vision_result")
+    if result is None:
+        return
+    frame = result.frames[-1]
+    st.markdown("#### What We Found in Your Video")
+    st.caption("FROM UPLOADED VIDEO · Counts depend on the selected queue area and camera view")
+    columns = st.columns(4)
+    columns[0].metric("People Waiting", frame.queue_count, help="People counted inside the selected queue area in the latest sampled frame.")
+    columns[1].metric("People Entering", result.summary["entry_events"], help="Tracks that crossed the selected entry line.")
+    columns[2].metric("People Served", result.summary["service_events"], help="Tracks that crossed the service line; an actual service completion is not verified.")
+    columns[3].metric("People Seen", frame.detected_people, help="All detected people in the latest sampled frame, including those outside the queue area.")
+    view = st.radio("Video view", ("Analyzed Video", "Original Video"), horizontal=True,
+                    key="qm_vision_view")
+    if view == "Original Video":
+        uploaded = st.session_state.get("qm_vision_upload_keep")
+        if uploaded is not None and Path(uploaded.name).suffix.lower() in {".mp4", ".mov"}:
+            st.video(uploaded)
+        else:
+            st.info("Your browser cannot preview this codec. The analyzed still frame is available below.")
+    else:
+        preview_index = min(result.previews, key=lambda index: abs(index - frame.frame_index)) if result.previews else None
+        if preview_index is not None:
+            st.image(result.previews[preview_index], caption=f"Analyzed frame {preview_index}: boxes mark Waiting or Outside Queue", width="stretch")
+        if result.annotated_video is not None:
+            st.video(result.annotated_video)
+        elif preview_index is None:
+            st.info("No annotated frame was retained for this analysis.")
+    st.caption("The queue-area outline and anonymous person numbers are shown on the analyzed frame. Queue counting accuracy has not been measured on this video.")
+    _forecast_integration(locations)
+    with st.expander("Advanced Video Details"):
+        if st.checkbox("Show frame metrics, timeline, and evaluation tools", key="qm_vision_show_advanced"):
+            _live_metrics(locations[st.session_state.get("qm_vision_location", 0)])
+            _timeline(locations[st.session_state.get("qm_vision_location", 0)])
+            _evaluation()
 
 
 def _selected_frame(result):
@@ -395,61 +497,86 @@ def _timeline(location):
 
 
 def _forecast_integration(locations):
-    st.markdown("#### Use local video state in QueueMind")
+    st.markdown("#### Predict Future Queue")
     result = _result()
     if result is None:
         return
+    active_state = st.session_state.get("qm_vision_state")
+    if active_state is not None:
+        remembered = next((item["display_name"] for item in locations
+                           if item["id"] == active_state.location_id), None)
+        if remembered is not None:
+            st.session_state.setdefault("qm_vision_location_label", remembered)
+        st.session_state.setdefault("qm_vision_active_counters", active_state.active_counters)
     names = [item["display_name"] for item in locations]
-    selected_location = st.selectbox("Facility profile for configured service capacity", names,
-                                     key="qm_vision_location_label")
+    selected_location = st.selectbox("Which kind of facility is this?", names,
+                                     key="qm_vision_location_label",
+                                     help="This supplies an example service time and wait target; it does not verify where the video was recorded.")
     location = locations[names.index(selected_location)]
     st.session_state.qm_vision_location = names.index(selected_location)
-    st.caption("Facility profile supplies service time and target wait; the video supplies queue count and crossing rates. It does not establish where the video was recorded.")
-    counters = st.slider("Active counters", 1, 8, value=int(location["default_counters"]),
+    st.caption("The video supplies the queue count. Facility settings supply example service speed and the target wait.")
+    counters = st.slider("Open Counters", 1, 8, value=int(location["default_counters"]),
                          key="qm_vision_active_counters")
-    choice = st.radio("Observation", ("LATEST ANALYZED STATE", "CURRENT ANALYZED FRAME"), horizontal=True)
-    frame = result.frames[-1] if choice.startswith("LATEST") else _selected_frame(result)
-    state = state_from_frame(result, frame, location, counters)
-    forecast = project_vision_state(state, location)
-    st.markdown('<div class="qm-panel blue"><div class="qm-label">SOURCE: LOCAL VIDEO ANALYSIS</div>'
-                f'<b>Frame {frame.frame_index} · {frame.timestamp_s:.1f}s</b> · '
-                f'{frame.queue_count} queued · {frame.arrival_rate:.2f} entry crossings/min · '
-                f'{frame.service_rate:.2f} service crossings/min</div>', unsafe_allow_html=True)
-    st.caption("DETERMINISTIC QUEUE PROJECTION · observed trailing entry rate held constant. No ML arrival forecast is claimed for this short video session.")
-    cols = st.columns(4)
-    for col, point in zip(cols, forecast["points"][1:]):
-        col.metric(f"+{point['minute']} min queue", f"{point['queue']:.1f}")
-        col.caption(f"Wait {point['wait']:.1f} min · {point['congestion'].upper()}")
-    projected = pd.DataFrame(forecast["points"])
-    figure = go.Figure(go.Scatter(x=projected.minute, y=projected.queue, mode="lines+markers",
-                                  line={"color": "#F36F5D", "width": 3}, name="Deterministic projection"))
-    figure.update_layout(height=250, xaxis_title="Minutes after selected video frame",
-                         yaxis_title="Expected queue · people", margin=dict(l=10, r=10, t=10, b=10))
-    st.plotly_chart(figure, width="stretch")
-    if st.button("RUN COUNTER OPTIMIZER", type="secondary", width="stretch"):
-        st.session_state.qm_vision_optimizer_ran = True
-    if st.session_state.get("qm_vision_optimizer_ran"):
-        st.markdown("#### Counter optimizer · +20 minutes")
-    recommendation = forecast["recommendation"]
-    if st.session_state.get("qm_vision_optimizer_ran"):
-        left, right = st.columns(2)
-        for column, title, outcome in (
-            (left, "Current", recommendation["current_outcome"]),
-            (right, "Recommended", recommendation["recommended_outcome"]),
-        ):
-            column.markdown(f"**{title}: {outcome['active_counters']} counters**")
-            column.metric("Expected +20 queue", f"{outcome['future_queue']:.1f}")
-            column.metric("Expected +20 wait", f"{outcome['predicted_wait_minutes']:.1f} min")
-        st.caption(recommendation["reason"])
-    st.caption(f"Configured service capacity {forecast['configured_service_capacity']:.2f}/min · observed service crossings {forecast['observed_service_completion_rate']:.2f}/min. These are distinct quantities.")
-    if st.button("USE THIS VISION STATE", type="primary", width="stretch"):
+    frame = result.frames[-1]
+    from src.demo.scenarios import SCENARIOS
+    compatible = [name for name, settings in SCENARIOS.items()
+                  if settings["location_id"] == location["id"]]
+    if not compatible:
+        compatible = list(SCENARIOS)
+    entry_count = result.summary["entry_events"]
+    measured_available = entry_count >= 2 and frame.timestamp_s >= 20
+    options = ["Choose future demand"]
+    if measured_available:
+        options.append("Use video entry rate")
+    options.extend(f"Demo assumption: {name}" for name in compatible)
+    if "qm_vision_demand_choice" not in st.session_state:
+        previous = st.session_state.get("qm_vision_demand_choice_keep", "Choose future demand")
+        st.session_state.qm_vision_demand_choice = previous if previous in options else "Choose future demand"
+    demand_choice = st.selectbox("How many people may arrive next?", options,
+                                 key="qm_vision_demand_choice")
+    st.session_state.qm_vision_demand_choice_keep = demand_choice
+    if not measured_available:
+        st.info("This short video did not show enough entry crossings to estimate future arrivals. Choose a clearly labelled demo demand assumption to continue.")
+    if demand_choice == "Choose future demand" and active_state is None:
+        st.caption("No future queue or wait is shown until you choose a demand source.")
+    elif demand_choice == "Use video entry rate":
+        st.caption(f"Measured from video crossings: {frame.arrival_rate:.2f} people arriving per minute. Future arrivals are held at this rate; no ML forecast is claimed.")
+    else:
+        chosen = demand_choice.removeprefix("Demo assumption: ")
+        st.caption(f"VIDEO COUNT + SYNTHETIC DEMO DEMAND · {chosen} uses {SCENARIOS[chosen]['arrival_rate']:.2f} arrivals/min. This rate was not measured in the video.")
+    if st.button("Predict Future Queue", type="primary", width="stretch",
+                 disabled=demand_choice == "Choose future demand"):
+        if demand_choice == "Use video entry rate":
+            state = state_from_frame(result, frame, location, counters)
+        else:
+            chosen = demand_choice.removeprefix("Demo assumption: ")
+            state = state_from_frame(result, frame, location, counters,
+                                     forecast_arrival_rate=SCENARIOS[chosen]["arrival_rate"],
+                                     demand_source="SYNTHETIC_ASSUMPTION")
         st.session_state.qm_vision_state = state
         st.session_state.qm_state_source = "VISION"
+    state = st.session_state.get("qm_vision_state")
+    if st.session_state.get("qm_state_source") != "VISION" or state is None:
+        return
+    forecast = project_vision_state(state, next(item for item in locations if item["id"] == state.location_id))
+    st.caption("FROM UPLOADED VIDEO" if state.demand_source == "VIDEO_EVENTS"
+               else "VIDEO COUNT + SYNTHETIC DEMO DEMAND ASSUMPTION")
+    cols = st.columns(5)
+    for col, point in zip(cols, forecast["points"]):
+        col.metric("Now" if point["minute"] == 0 else f"+{point['minute']} min",
+                   f"{point['queue']:.0f} waiting")
+        col.caption(f"Estimated wait {point['wait']:.1f} min")
+    st.caption("Future queue is a deterministic simulation. Wait uses the selected facility's example service time, not a measured transaction speed.")
+    rec = forecast["recommendation"]
+    before, after = rec["current_outcome"], rec["recommended_outcome"]
+    st.markdown("#### Best Counters")
+    left, right = st.columns(2)
+    left.metric(f"Before · {before['active_counters']} counters", f"{before['predicted_wait_minutes']:.1f} min wait")
+    right.metric(f"After · {after['active_counters']} counters", f"{after['predicted_wait_minutes']:.1f} min wait")
+    st.caption("Simulator-derived +20-minute outcomes · " + rec["reason"])
+    if st.button("Back to Demo", key="qm_vision_back_demo"):
+        st.session_state.qm_state_source = "SYNTHETIC"
         st.rerun()
-    if st.session_state.get("qm_state_source") == "VISION":
-        if st.button("RETURN TO SYNTHETIC DEMO"):
-            st.session_state.qm_state_source = "SYNTHETIC"
-            st.rerun()
 
 
 def render_shared_vision_state(locations, section):
@@ -462,37 +589,49 @@ def render_shared_vision_state(locations, section):
         st.warning("The selected vision facility is no longer configured.")
         return False
     forecast = project_vision_state(state, location)
-    st.info("SOURCE: LOCAL VIDEO ANALYSIS · observed video queue and crossings; future queue is a DETERMINISTIC PROJECTION, not an ML forecast.")
-    if st.button("RETURN TO SYNTHETIC DEMO", key=f"qm_return_synthetic_{section}"):
+    st.info("FROM UPLOADED VIDEO · Queue count measured from frames. " +
+            ("Future demand uses observed entry crossings." if state.demand_source == "VIDEO_EVENTS"
+             else "Future demand uses a SYNTHETIC demo assumption, not video measurements."))
+    if st.button("Back to Demo", key=f"qm_return_synthetic_{section}"):
         st.session_state.qm_state_source = "SYNTHETIC"
         st.rerun()
     st.markdown(f"### {section} · {escape(location['display_name'])}")
     current = forecast["points"][0]
     cols = st.columns(5)
     for col, label, value in zip(cols,
-        ("Current queue", "Estimated wait", "Entry rate", "Configured capacity", "Counters"),
+        ("People Waiting", "Estimated Wait", "Video Entry Crossings / Min", "Example Service Capacity", "Open Counters"),
         (f"{state.current_queue}", f"{current['wait']:.1f} min",
          f"{state.observed_arrival_rate:.2f}/min", f"{forecast['configured_service_capacity']:.2f}/min",
          state.active_counters),
     ):
         col.metric(label, value)
     st.caption(f"Observed service-crossing rate: {state.observed_service_rate:.2f}/min. It is not the configured service capacity.")
-    if section in {"Overview", "Forecast"}:
+    st.caption(f"Future demand used in simulation: {forecast['points'][1]['forecast_arrival_rate']:.2f} arrivals/min · "
+               + ("measured video crossings held constant" if state.demand_source == "VIDEO_EVENTS"
+                  else "SYNTHETIC demo assumption, not video-derived"))
+    if section in {"Home", "Predictions"}:
         points = pd.DataFrame(forecast["points"])
-        st.plotly_chart(px.line(points, x="minute", y="queue", markers=True,
-                                title="Observed queue → deterministic future projection"), width="stretch")
-        st.dataframe(points.rename(columns={"minute": "Horizon · min", "queue": "Expected queue",
-                                           "wait": "Estimated wait · min"}), hide_index=True, width="stretch")
-    if section in {"Overview", "Optimizer"}:
+        mode = st.radio("Show", ("People Waiting", "Waiting Time"), horizontal=True,
+                        key="qm_video_prediction_mode")
+        value = "queue" if mode == "People Waiting" else "wait"
+        chart = px.line(points, x="minute", y=value, markers=True,
+                        title="People Waiting Over Time" if value == "queue" else "Estimated Waiting Time")
+        chart.add_vline(x=0, line_dash="dot", annotation_text="NOW")
+        st.plotly_chart(chart, width="stretch")
+        with st.expander("Advanced Prediction Details"):
+            st.dataframe(points.rename(columns={"minute": "Minutes ahead", "queue": "Expected queue",
+                                               "wait": "Estimated wait · min"}), hide_index=True, width="stretch")
+    if section in {"Home", "Best Counters"}:
         rec = forecast["recommendation"]
         before, after = rec["current_outcome"], rec["recommended_outcome"]
-        st.markdown("#### Counter recommendation · existing simulator")
+        st.markdown("#### How many counters should be open?")
         left, right = st.columns(2)
         for col, label, outcome in ((left, "Current", before), (right, "Recommended", after)):
-            col.metric(f"{label} counters", outcome["active_counters"])
-            col.metric("+20 queue", f"{outcome['future_queue']:.1f}")
-            col.metric("+20 wait", f"{outcome['predicted_wait_minutes']:.1f} min")
+            col.metric(f"{label} Counters", outcome["active_counters"])
+            col.metric("Queue in 20 Min", f"{outcome['future_queue']:.1f}")
+            col.metric("Estimated Wait", f"{outcome['predicted_wait_minutes']:.1f} min")
         st.caption(rec["reason"])
+        st.caption("These are simulator results using facility settings and the stated demand source, not measured effects of changing staff.")
     return True
 
 
@@ -566,6 +705,20 @@ def _privacy():
     st.info("PRIVACY DESIGN · Person class only · temporary anonymous track IDs · no face recognition · no biometric or student identification · upload held only in this browser session for calibration and cleared on Reset; temporary disk copies are deleted after each operation · aggregate queue statistics preferred.")
     st.caption("Anonymous IoU tracking may lose or reassign IDs under heavy occlusion. Virtual-line crossings require camera calibration and are not verified person identities or service completions. Real campus CCTV requires institutional permission.")
     st.code('python -m pip install -r requirements-vision.txt\npython -m streamlit run app.py\npython -m scripts.vision_demo "C:\\path\\to\\queue_video.mp4"\npython -m scripts.vision_demo 0', language="powershell")
+
+
+def render_video_upload(locations, *, home=False):
+    """One upload/analyzer implementation shared by Home and Upload Video."""
+    _defaults()
+    if not home:
+        from src.ui.feature_help import feature_heading
+        feature_heading("Upload Video", "Upload → choose queue area → analyze → see results")
+    _video_analyzer(locations, home=home)
+
+
+def render_vision_evaluation():
+    _defaults()
+    _evaluation()
 
 
 def render_vision_lab():

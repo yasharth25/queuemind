@@ -16,10 +16,11 @@ from src.ui.command_model import HORIZONS, alert_items, risk_for, snapshot
 from src.ui.command_views import (
     action_center, alert_feed, event_stream, kpi_strip, live_queue, timeline,
 )
+from src.ui.feature_help import feature_heading
 
 
 def _controls(state):
-    st.caption("SYNTHETIC SCENARIO CONTROLS")
+    st.caption("DEMO DATA — NOT A REAL CCTV FEED · SYNTHETIC SIMULATION")
     choices = st.columns(4)
     for column, (name, label) in zip(choices, SCENARIO_OPTIONS):
         with column:
@@ -29,17 +30,17 @@ def _controls(state):
                 on_click=_select_scenario, args=(name,),
             )
     controls = st.columns([1.25, 1, 1, .7, .7, .7, 1])
-    controls[0].slider("Demand intensity", .5, 2.5, step=.1, key="qm_demand", on_change=_change_demand)
+    controls[0].slider("How Busy Is It?", .5, 2.5, step=.1, key="qm_demand", on_change=_change_demand)
     controls[1].slider(
-        "Active counters", 1, 8,
+        "Open Counters", 1, 8,
         key=f'qm_counters_{st.session_state.qm_counter_version}',
         on_change=_change_counters,
     )
-    controls[2].selectbox("Simulation speed", list(SPEEDS), key="qm_speed", on_change=_change_speed)
-    controls[3].button("▶ PLAY", width="stretch", on_click=play, args=(state,))
-    controls[4].button("Ⅱ PAUSE", width="stretch", on_click=pause, args=(state,))
-    controls[5].button("↺ RESET", width="stretch", on_click=_reset)
-    controls[6].button("⚡ SURGE", width="stretch", on_click=_surge, type="primary")
+    controls[2].selectbox("Simulation Speed", list(SPEEDS), key="qm_speed", on_change=_change_speed)
+    controls[3].button("▶ Play", width="stretch", on_click=play, args=(state,))
+    controls[4].button("Ⅱ Pause", width="stretch", on_click=pause, args=(state,))
+    controls[5].button("↺ Reset", width="stretch", on_click=_reset)
+    controls[6].button("↑ Increase Crowd", width="stretch", on_click=_surge, type="primary")
 
 
 def _recommendation_button(state, view):
@@ -119,8 +120,9 @@ def render_overview_tab(locations):
 
 
 def render_live_tab(locations):
+    feature_heading("Live Demo", "Change the crowd and counters to see a synthetic queue respond.")
     if st.session_state.get("qm_state_source") == "VISION":
-        st.info("This Live Simulation tab remains SYNTHETIC and is independent of the selected local-video state. Overview, Forecast, and Optimizer use the selected video state.")
+        st.info("The Live Demo stays separate from your uploaded-video results. Predictions and Best Counters use the selected video state.")
     state = st.session_state.qm_live
     _controls(state)
 
@@ -129,7 +131,7 @@ def render_live_tab(locations):
         current = st.session_state.qm_live
         advance(current)
         view = snapshot(current)
-        st.caption(f'SYNTHETIC LIVE SIMULATION · +{current["simulation_elapsed_minutes"]} simulated minutes')
+        st.caption(f'DEMO DATA — NOT A REAL CCTV FEED · +{current["simulation_elapsed_minutes"]} simulated minutes')
         kpi_strip(view, current)
         left, right = st.columns([1.7, 1.15])
         with left:
@@ -137,14 +139,15 @@ def render_live_tab(locations):
         with right:
             action_center(view, current)
             _recommendation_button(current, view)
-        chart_col, feed_col = st.columns([1.7, 1])
-        with chart_col:
-            _live_charts(current, view)
-        with feed_col:
-            st.markdown("#### Event stream")
-            event_stream(current["simulation_events"])
-            st.markdown("#### Predictive alerts")
-            alert_feed(alert_items(current, view)[:5])
+        with st.expander("Advanced Demo Details"):
+            chart_col, feed_col = st.columns([1.7, 1])
+            with chart_col:
+                _live_charts(current, view)
+            with feed_col:
+                st.markdown("#### Recent Activity")
+                event_stream(current["simulation_events"])
+                st.markdown("#### Queue Warnings")
+                alert_feed(alert_items(current, view)[:5])
 
     live_detail()
 
@@ -175,15 +178,20 @@ def _live_charts(state, view):
 def render_forecast_tab(locations):
     if st.session_state.get("qm_state_source") == "VISION":
         from src.ui.vision_lab import render_shared_vision_state
-        if render_shared_vision_state(locations, "Forecast"):
+        if render_shared_vision_state(locations, "Predictions"):
             return
     state = st.session_state.qm_live
     view = snapshot(state)
-    st.markdown("### Forecast · deterministic scenario projection")
-    st.caption("SYNTHETIC scenario demand assumption. This chart is not an ML-model prediction.")
+    feature_heading("Predictions", "See what may happen in 5, 10, 20, and 30 minutes.")
+    st.caption("USING DEMO DATA · SYNTHETIC scenario demand · deterministic queue simulation, not an ML-model prediction")
     timeline(view)
     history = _history(_location(state, locations), 1, 42)
     _forecast_chart(state, view, history)
+    with st.expander("Advanced Prediction Details"):
+        _forecast_details(state, view)
+
+
+def _forecast_details(state, view):
     rows = []
     for point in view["timeline"][1:]:
         horizon = point["minute"]
@@ -200,11 +208,11 @@ def render_forecast_tab(locations):
             "Counters required": recommendation["recommended_counters"],
         })
     table = pd.DataFrame(rows)
-    st.markdown("#### Horizon detail")
+    st.markdown("#### Future Queue by Time")
     st.dataframe(table, hide_index=True, width="stretch")
     st.download_button("DOWNLOAD SYNTHETIC FORECAST CSV", table.to_csv(index=False),
                        "queuemind_synthetic_forecast.csv", "text/csv")
-    st.markdown("#### Why is the queue changing?")
+    st.markdown("#### Is the Queue Growing?")
     pressure = view["pressure"]
     st.write(
         f'Arrival rate **{view["arrival_rate"]:.2f} people/min** − service capacity '
@@ -218,33 +226,30 @@ def render_forecast_tab(locations):
 def render_optimizer_tab(locations):
     if st.session_state.get("qm_state_source") == "VISION":
         from src.ui.vision_lab import render_shared_vision_state
-        if render_shared_vision_state(locations, "Optimizer"):
+        if render_shared_vision_state(locations, "Best Counters"):
             return
     state = st.session_state.qm_live
     view = snapshot(state)
-    st.markdown("### Counter optimizer · simulated decision support")
-    st.caption("SYNTHETIC +20-minute outcomes · click Apply to update the shared simulation state.")
-    _counter_cards(state, view, full=True)
+    feature_heading("Best Counters", "How many counters should be open to reach the waiting-time target?")
+    st.caption("USING DEMO DATA · SYNTHETIC +20-minute simulator outcomes · changing counters updates the live demo")
     current = view["recommendation"]["current_outcome"]
     proposed = view["recommendation"]["recommended_outcome"]
     current_rate = calculate_service_rate(state["active_counters"], view["config"]["service_time"])
     proposed_rate = calculate_service_rate(view["recommendation"]["recommended_counters"], view["config"]["service_time"])
     left, right = st.columns(2)
     with left:
-        st.markdown("#### Current configuration")
-        st.metric("Counters", state["active_counters"])
-        st.metric("+20 queue", f'{current["future_queue"]:.0f}')
-        st.metric("+20 wait", f'{current["predicted_wait_minutes"]:.1f} min')
-        st.metric("Risk", risk_for(current["future_queue"], current["predicted_wait_minutes"], view["config"]).upper())
-        st.caption(f"Service capacity {current_rate:.2f} people/min")
+        st.markdown("#### Before")
+        st.metric("Current Counters", state["active_counters"])
+        st.metric("Estimated Wait in 20 Min", f'{current["predicted_wait_minutes"]:.1f} min')
+        st.caption(f'Expected queue {current["future_queue"]:.0f} · example service capacity {current_rate:.2f} people/min')
     with right:
-        st.markdown("#### Recommended configuration")
-        st.metric("Counters", view["recommendation"]["recommended_counters"])
-        st.metric("+20 queue", f'{proposed["future_queue"]:.0f}')
-        st.metric("+20 wait", f'{proposed["predicted_wait_minutes"]:.1f} min')
-        st.metric("Risk", risk_for(proposed["future_queue"], proposed["predicted_wait_minutes"], view["config"]).upper())
-        st.caption(f"Service capacity {proposed_rate:.2f} people/min")
-    st.markdown("#### Why this number of counters?")
+        st.markdown("#### After")
+        st.metric("Suggested Counters", view["recommendation"]["recommended_counters"])
+        st.metric("Estimated Wait in 20 Min", f'{proposed["predicted_wait_minutes"]:.1f} min')
+        st.caption(f'Expected queue {proposed["future_queue"]:.0f} · example service capacity {proposed_rate:.2f} people/min')
+    if state["active_counters"] != view["recommendation"]["recommended_counters"]:
+        _recommendation_button(state, view)
+    st.markdown("#### Why this recommendation?")
     st.write(view["recommendation"]["reason"])
     if current["future_queue"]:
         st.metric("Simulated queue reduction", f'{(current["future_queue"] - proposed["future_queue"]) / current["future_queue"]:.1%}')
@@ -256,6 +261,8 @@ def render_optimizer_tab(locations):
         "the optimizer chooses the minimum tested counter count meeting the target. "
         "Additional counters may reduce wait further but use more staffing slots."
     )
+    st.markdown("#### Try a different number of counters")
+    _counter_cards(state, view, full=True)
 
 
 def render_vision_tab():
