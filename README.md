@@ -30,6 +30,8 @@ After analysis, the latest frame's queue count and crossing totals are video-der
 
 ### Public video inference status
 
+
+
 The Streamlit Community Cloud installation uses only `requirements.txt` and intentionally excludes OpenCV, Ultralytics, PyTorch, and model weights. Therefore **public uploaded-video analysis is not active by default**. The upload control can preview a clip, but does not fabricate people counts when no detector is configured. The Live Demo remains fully usable.
 
 An optional private video worker is included for an authorized separately hosted inference service. It reuses the local YOLO analyzer, accepts bounded video uploads, requires a bearer token, handles one analysis at a time, returns aggregate frame results and bounded annotated previews, and deletes its temporary video copy. No inference provider, credentials, or public worker is provisioned by this repository. To use it, deploy the worker on an appropriate host behind HTTPS with `requirements-vision.txt` installed and a pre-provisioned YOLO weight file, set a random `QUEUEMIND_VISION_TOKEN` (at least 24 characters), then run:
