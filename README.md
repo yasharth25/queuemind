@@ -48,6 +48,7 @@ Generated data is always **SYNTHETIC**. Queue simulation is deterministic; predi
 
 ## Privacy
 
+
 QueueMind counts people, not identities. It has no face recognition, biometrics, student identification, age/gender inference, or identity database. Track IDs are temporary and anonymous. Uploaded raw videos are not saved to SQLite and temporary disk copies are removed after each local or worker analysis. Session-held uploads and bounded previews are cleared on reset or session end; processed video export is off by default. Only analyze recordings you are authorized to use. Real campus CCTV would require institutional permission and a separate privacy/deployment review.
 
 ## Installation, tests, and evaluation
