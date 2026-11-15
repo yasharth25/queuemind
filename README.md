@@ -24,6 +24,8 @@ Open **Home** or **Upload Video**, upload an authorized MP4/MOV/AVI/MKV recordin
 
 Person detection, anonymous IoU tracking, queue-area counting, and virtual-line crossings are real inference, not drawn examples. A bottom-centre ground point must be inside the selected polygon to count as waiting. A service-line crossing is **not** a verified completed transaction. Recalibrate the queue area and rerun if the camera view differs from the default.
 
+
+
 After analysis, the latest frame's queue count and crossing totals are video-derived. Future arrivals require enough observed entry crossings or an **explicitly selected SYNTHETIC demand assumption**. The latter is labelled “Video count + synthetic demo demand.” The selected facility's service time is an example configuration, not a measured video service speed. The deterministic simulator then projects +5/+10/+20/+30-minute queue and wait and optimizes counters. This is not claimed to be an ML forecast from one short clip. Video state is shared across tabs; **Back to Demo** restores the independent synthetic simulation.
 
 ### Public video inference status
