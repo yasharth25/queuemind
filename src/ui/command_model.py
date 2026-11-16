@@ -6,7 +6,6 @@ from src.demo.scenarios import SCENARIOS
 from src.queueing.simulator import (
     calculate_service_rate,
     estimate_wait_minutes,
-    evaluate_counter_counts,
     get_congestion_status,
     recommend_counter_count,
     simulate_queue,
@@ -51,12 +50,6 @@ def snapshot(state):
         queue, arrival_rate, config["service_time"], counters,
         config["target_wait"], 20, list(range(1, 9)),
     )
-    candidates = sorted(set(range(1, 9)) | {
-        counters, recommendation["recommended_counters"]
-    })
-    options = evaluate_counter_counts(
-        queue, arrival_rate, config["service_time"], candidates, 20,
-    )
     threshold = next(
         (item["minute"] for item in timeline
          if item["wait"] > config["target_wait"]),
@@ -74,7 +67,7 @@ def snapshot(state):
         "wait20": timeline[3]["wait"],
         "risk20": timeline[3]["risk"],
         "recommendation": recommendation,
-        "options": options,
+        "options": recommendation["evaluations"],
         "first_target_exceeded": threshold,
     }
 

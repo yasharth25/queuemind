@@ -232,10 +232,12 @@ def render_optimizer_tab(locations):
     view = snapshot(state)
     feature_heading("Best Counters", "How many counters should be open to reach the waiting-time target?")
     st.caption("USING DEMO DATA · SYNTHETIC +20-minute simulator outcomes · changing counters updates the live demo")
-    current = view["recommendation"]["current_outcome"]
-    proposed = view["recommendation"]["recommended_outcome"]
-    current_rate = calculate_service_rate(state["active_counters"], view["config"]["service_time"])
-    proposed_rate = calculate_service_rate(view["recommendation"]["recommended_counters"], view["config"]["service_time"])
+    recommendation = view["recommendation"]
+    current = recommendation["current_outcome"]
+    proposed = recommendation["recommended_outcome"]
+    proposed_counters = recommendation["recommended_counters"]
+    current_rate = view["service_rate"]
+    proposed_rate = calculate_service_rate(proposed_counters, view["config"]["service_time"])
     left, right = st.columns(2)
     with left:
         st.markdown("#### Before")
@@ -244,13 +246,12 @@ def render_optimizer_tab(locations):
         st.caption(f'Expected queue {current["future_queue"]:.0f} · example service capacity {current_rate:.2f} people/min')
     with right:
         st.markdown("#### After")
-        st.metric("Suggested Counters", view["recommendation"]["recommended_counters"])
+        st.metric("Suggested Counters", proposed_counters)
         st.metric("Estimated Wait in 20 Min", f'{proposed["predicted_wait_minutes"]:.1f} min')
         st.caption(f'Expected queue {proposed["future_queue"]:.0f} · example service capacity {proposed_rate:.2f} people/min')
-    if state["active_counters"] != view["recommendation"]["recommended_counters"]:
-        _recommendation_button(state, view)
+    _recommendation_button(state, view)
     st.markdown("#### Why this recommendation?")
-    st.write(view["recommendation"]["reason"])
+    st.write(recommendation["reason"])
     if current["future_queue"]:
         st.metric("Simulated queue reduction", f'{(current["future_queue"] - proposed["future_queue"]) / current["future_queue"]:.1%}')
     if current["predicted_wait_minutes"]:

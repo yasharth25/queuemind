@@ -4,6 +4,14 @@
 
 QueueMind is an academic prototype for queue counting, demand forecasting, deterministic wait simulation, and counter recommendations. It is **not** a live NIT Rourkela CCTV deployment. The public app's normal mode uses clearly labelled **SYNTHETIC demo data**. It must not be interpreted as measured campus operations.
 
+- [Use the website](#use-the-website)
+- [Analyze a video locally](#analyze-a-video-locally)
+- [Public video inference status](#public-video-inference-status)
+- [Architecture and methodology](#architecture-and-methodology)
+- [Privacy](#privacy)
+- [Installation, tests, and evaluation](#installation-tests-and-evaluation)
+- [Current limitations](#current-limitations)
+
 ## Use the website
 
 Run `streamlit run app.py`. The six tabs are **Home**, **Upload Video**, **Live Demo**, **Predictions**, **Best Counters**, and **Results**. Home has the same video uploader and analysis state as Upload Video. Live Demo runs without a camera, weights, or trained forecast model. Change the crowd, facility, counters, or simulation speed to see deterministic changes. Predictions and Best Counters use simulator outputs, not static example values.
@@ -64,7 +72,15 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m streamlit run app.py
 ```
 
-Additional commands: `python -m scripts.generate_synthetic_data --days 60`, `python -m scripts.initialize_database`, and `python -m scripts.evaluate_vision --labels "C:\path\to\vision_labels.csv"`. Do not commit generated datasets, test videos, model weights, `.env`, or secrets.
+Additional commands:
+
+| Task | Command |
+| --- | --- |
+| Generate 60 days of synthetic data | `python -m scripts.generate_synthetic_data --days 60` |
+| Initialize the database | `python -m scripts.initialize_database` |
+| Evaluate manually labelled video frames | `python -m scripts.evaluate_vision --labels "C:\path\to\vision_labels.csv"` |
+
+Do not commit generated datasets, test videos, model weights, `.env`, or secrets.
 
 ## Current limitations
 
